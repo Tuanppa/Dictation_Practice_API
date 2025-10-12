@@ -1,10 +1,11 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
     # Database - Railway sẽ tự động set DATABASE_URL
-    # Cho phép None để không bị lỗi khi chưa có .env
+    # Pydantic-settings tự động đọc từ environment variables
     DATABASE_URL: str = "postgresql://localhost/dictation_practice_db"
     
     # Redis - Railway sẽ tự động set REDIS_URL
@@ -42,6 +43,13 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        # Pydantic sẽ tự động đọc environment variables
+        # và override các giá trị default
 
 
 settings = Settings()
+
+# Debug log (chỉ hiển thị một phần để bảo mật)
+if os.getenv("ENVIRONMENT") != "production":
+    db_url_preview = settings.DATABASE_URL[:40] + "..." if len(settings.DATABASE_URL) > 40 else settings.DATABASE_URL
+    print(f"🔍 Config loaded - DATABASE_URL: {db_url_preview}")
