@@ -7,9 +7,9 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.core.database import SessionLocal
-from app.models.user import User
-from sqlalchemy import func
+from app.core.database import SessionLocal  # type: ignore
+from app.models.user import User  # type: ignore
+from sqlalchemy import func  # type: ignore
 
 def view_all_users():
     """Xem tất cả users"""
@@ -29,7 +29,7 @@ def view_all_users():
         print(f"\n📊 Total users: {len(users)}\n")
         
         for user in users:
-            print(f"{'─' * 100}")
+            print("─" * 100)
             print(f"ID:              {user.id}")
             print(f"Email:           {user.email}")
             print(f"Full Name:       {user.full_name or 'N/A'}")
@@ -47,7 +47,7 @@ def view_all_users():
             print(f"Created At:      {user.created_at}")
             print(f"Last Login:      {user.last_login or 'Never'}")
         
-        print(f"{'─' * 100}\n")
+        print("─" * 100 + "\n")
         
     finally:
         db.close()
@@ -65,8 +65,8 @@ def view_user_by_email(email: str):
             print(f"❌ User not found: {email}")
             return
         
-        print(f"\n✅ User found!")
-        print(f"{'─' * 80}")
+        print("\n✅ User found!")
+        print("─" * 80)
         print(f"ID:              {user.id}")
         print(f"Email:           {user.email}")
         print(f"Full Name:       {user.full_name or 'N/A'}")
@@ -76,7 +76,7 @@ def view_user_by_email(email: str):
         print(f"Is Premium:      {'✅ Yes' if user.is_premium else '❌ No'}")
         print(f"Created At:      {user.created_at}")
         print(f"Last Login:      {user.last_login or 'Never'}")
-        print(f"{'─' * 80}\n")
+        print("─" * 80 + "\n")
         
     finally:
         db.close()
@@ -90,12 +90,13 @@ def view_statistics():
     db = SessionLocal()
     
     try:
-        total = db.query(func.count(User.id)).scalar()
-        active = db.query(func.count(User.id)).filter(User.is_active == True).scalar()
-        premium = db.query(func.count(User.id)).filter(User.is_premium == True).scalar()
-        verified = db.query(func.count(User.id)).filter(User.is_verified == True).scalar()
+        # Fix: Dùng func.count() với dấu ngoặc
+        total = db.query(func.count(User.id)).scalar()  # type: ignore
+        active = db.query(func.count(User.id)).filter(User.is_active == True).scalar()  # type: ignore
+        premium = db.query(func.count(User.id)).filter(User.is_premium == True).scalar()  # type: ignore
+        verified = db.query(func.count(User.id)).filter(User.is_verified == True).scalar()  # type: ignore
         
-        print(f"\n📈 Summary:")
+        print("\n📈 Summary:")
         print(f"   Total Users:      {total}")
         print(f"   Active Users:     {active}")
         print(f"   Premium Users:    {premium}")
@@ -103,26 +104,26 @@ def view_statistics():
         
         # Auth providers
         from app.models.user import AuthProviderEnum
-        print(f"\n🔐 By Auth Provider:")
+        print("\n🔐 By Auth Provider:")
         for provider in AuthProviderEnum:
-            count = db.query(func.count(User.id)).filter(User.auth_provider == provider).scalar()
+            count = db.query(func.count(User.id)).filter(User.auth_provider == provider).scalar()  # type: ignore
             print(f"   {provider.value.capitalize():12} {count}")
         
         # Roles
         from app.models.user import RoleEnum
-        print(f"\n👤 By Role:")
+        print("\n👤 By Role:")
         for role in RoleEnum:
-            count = db.query(func.count(User.id)).filter(User.role == role).scalar()
+            count = db.query(func.count(User.id)).filter(User.role == role).scalar()  # type: ignore
             print(f"   {role.value.capitalize():12} {count}")
         
-        print(f"\n{'─' * 80}\n")
+        print("\n" + "─" * 80 + "\n")
         
     finally:
         db.close()
 
 def view_recent_users(limit: int = 5):
     """Xem users mới đăng ký gần đây"""
-    print(f"\n" + "=" * 80)
+    print("\n" + "=" * 80)
     print(f"🆕 {limit} MOST RECENT USERS")
     print("=" * 80)
     

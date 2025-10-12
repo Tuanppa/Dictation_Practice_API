@@ -4,7 +4,8 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Database - Railway sẽ tự động set DATABASE_URL
-    DATABASE_URL: str
+    # Cho phép None để không bị lỗi khi chưa có .env
+    DATABASE_URL: str = "postgresql://localhost/dictation_practice_db"
     
     # Redis - Railway sẽ tự động set REDIS_URL
     REDIS_HOST: str = "localhost"
@@ -13,7 +14,7 @@ class Settings(BaseSettings):
     REDIS_URL: Optional[str] = None  # Railway format: redis://...
     
     # JWT
-    SECRET_KEY: str
+    SECRET_KEY: str = "development-secret-key-please-change-in-production-min-32-chars"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
