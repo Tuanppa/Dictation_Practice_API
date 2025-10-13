@@ -4,10 +4,10 @@ from app.core.config import settings
 from app.core.database import engine, Base
 
 # Import models TRƯỚC KHI tạo tables (quan trọng!)
-from app.models import user  # noqa: F401
+from app.models import user, topic, lesson, section, progress  # noqa: F401
 
-# Import routers
-from app.routers import auth, users
+# Import routers (QUAN TRỌNG: import từ app.routers, không phải app.models)
+from app.routers import auth, users, topics, lessons, sections, progresses
 
 # Tạo tables trong database
 Base.metadata.create_all(bind=engine)
@@ -32,9 +32,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
-app.include_router(users.router, prefix=settings.API_V1_PREFIX)
+# Include routers (đã sửa: thêm topics, lessons, sections, progresses)
+app.include_router(auth.router, prefix=settings.API_V1_PREFIX, tags=["Authentication"])
+app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"])
+app.include_router(topics.router, prefix=settings.API_V1_PREFIX, tags=["Topics"])
+app.include_router(lessons.router, prefix=settings.API_V1_PREFIX, tags=["Lessons"])
+app.include_router(sections.router, prefix=settings.API_V1_PREFIX, tags=["Sections"])
+app.include_router(progresses.router, prefix=settings.API_V1_PREFIX, tags=["Progress"])
 
 
 @app.get("/")
