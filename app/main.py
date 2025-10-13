@@ -7,7 +7,7 @@ from app.core.database import engine, Base
 from app.models import user, topic, lesson, section, progress  # noqa: F401
 
 # Import routers (QUAN TRỌNG: import từ app.routers, không phải app.models)
-from app.routers import auth, users, topics, lessons, sections, progresses
+from app.routers import auth, users, topics, lessons, sections, progress
 
 # Tạo tables trong database
 Base.metadata.create_all(bind=engine)
@@ -38,7 +38,7 @@ app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"])
 app.include_router(topics.router, prefix=settings.API_V1_PREFIX, tags=["Topics"])
 app.include_router(lessons.router, prefix=settings.API_V1_PREFIX, tags=["Lessons"])
 app.include_router(sections.router, prefix=settings.API_V1_PREFIX, tags=["Sections"])
-app.include_router(progresses.router, prefix=settings.API_V1_PREFIX, tags=["Progress"])
+app.include_router(progress.router, prefix=settings.API_V1_PREFIX, tags=["Progress"])
 
 
 @app.get("/")
