@@ -55,9 +55,18 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     
-    # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, server_default=func.now())
+    # Timestamps - FIX: Dùng insert_default và onupdate đúng cách
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, 
+        insert_default=func.now(),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        insert_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     def __repr__(self):
