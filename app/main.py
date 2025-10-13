@@ -87,7 +87,7 @@ async def health_check():
         "status": "healthy",
         "environment": settings.ENVIRONMENT
     }
-
+from app.models.user import User, RoleEnum 
 @app.on_event("startup")
 async def create_first_admin():
     """Tạo admin user đầu tiên nếu chưa có"""
@@ -107,7 +107,7 @@ async def create_first_admin():
                 username="admin",
                 hashed_password=get_password_hash("admin123"),  # Đổi password này!
                 full_name="System Admin",
-                role="admin",
+                role=RoleEnum.ADMIN,
                 is_active=True
             )
             db.add(admin_user)
