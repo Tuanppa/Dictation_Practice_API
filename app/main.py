@@ -104,7 +104,6 @@ async def create_first_admin():
             # Tạo admin đầu tiên
             admin_user = User(
                 email="admin@example.com",
-                username="admin",
                 hashed_password=get_password_hash("admin123"),  # Đổi password này!
                 full_name="System Admin",
                 role=RoleEnum.ADMIN,
