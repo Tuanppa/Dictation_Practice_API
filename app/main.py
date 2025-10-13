@@ -70,7 +70,7 @@ app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"])
 app.include_router(topics.router, prefix=settings.API_V1_PREFIX, tags=["Topics"])
 app.include_router(lessons.router, prefix=settings.API_V1_PREFIX, tags=["Lessons"])
 app.include_router(sections.router, prefix=settings.API_V1_PREFIX, tags=["Sections"])
-app.include_router(progress.router, prefix=settings.API_V1_PREFIX, tags=["Progress"])
+app.include_router(progress_router.router, prefix=settings.API_V1_PREFIX, tags=["Progress"])
 
 
 @app.get("/")
