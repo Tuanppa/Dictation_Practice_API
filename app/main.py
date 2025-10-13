@@ -20,7 +20,32 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+from fastapi.openapi.utils import get_openapi
 
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=settings.PROJECT_NAME,
+        version="1.0.0",
+        description="API Documentation",
+        routes=app.routes,
+    )
+    
+    # Thêm security scheme
+    openapi_schema["components"]["securitySchemes"] = {
+        "bearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+    }
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 # Cấu hình CORS cho iOS app
 origins = settings.ALLOWED_ORIGINS.split(",") if settings.ALLOWED_ORIGINS != "*" else ["*"]
 
@@ -63,6 +88,33 @@ async def health_check():
         "environment": settings.ENVIRONMENT
     }
 
+@app.on_event("startup")
+async def create_first_admin():
+    """Tạo admin user đầu tiên nếu chưa có"""
+    from app.core.database import SessionLocal
+    from app.models.user import User
+    from app.core.security import get_password_hash
+    
+    db = SessionLocal()
+    try:
+        # Kiểm tra xem đã có admin chưa
+        admin_exists = db.query(User).filter(User.role == "admin").first()
+        
+        if not admin_exists:
+            # Tạo admin đầu tiên
+            admin_user = User(
+                email="admin@example.com",
+                username="admin",
+                hashed_password=get_password_hash("admin123"),  # Đổi password này!
+                full_name="System Admin",
+                role="admin",
+                is_active=True
+            )
+            db.add(admin_user)
+            db.commit()
+            print("✅ First admin user created: admin@example.com / admin123")
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     import uvicorn
@@ -72,3 +124,4 @@ if __name__ == "__main__":
         port=8000,
         reload=True
     )
+
