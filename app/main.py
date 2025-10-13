@@ -87,18 +87,18 @@ async def health_check():
         "status": "healthy",
         "environment": settings.ENVIRONMENT
     }
-from app.models.user import User, RoleEnum 
+
 @app.on_event("startup")
 async def create_first_admin():
     """Tạo admin user đầu tiên nếu chưa có"""
     from app.core.database import SessionLocal
-    from app.models.user import User
+    from app.models.user import User, RoleEnum
     from app.core.security import get_password_hash
     
     db = SessionLocal()
     try:
         # Kiểm tra xem đã có admin chưa
-        admin_exists = db.query(User).filter(User.role == "admin").first()
+        admin_exists = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
         
         if not admin_exists:
             # Tạo admin đầu tiên
