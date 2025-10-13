@@ -7,7 +7,14 @@ from app.core.database import engine, Base
 from app.models import user, topic, lesson, section, progress  # noqa: F401
 
 # Import routers (QUAN TRỌNG: import từ app.routers, không phải app.models)
-from app.routers import auth, users, topics, lessons, sections, progress
+from app.routers import (
+    auth, 
+    users, 
+    topics, 
+    lessons, 
+    sections,
+    progress as progress_router  # ✅ Đổi tên để tránh conflict
+)
 
 # Tạo tables trong database
 Base.metadata.create_all(bind=engine)
@@ -45,7 +52,7 @@ def custom_openapi():
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
-app.openapi = custom_openapi
+app.openapi = custom_openapi # type: ignore[method-assign]
 # Cấu hình CORS cho iOS app
 origins = settings.ALLOWED_ORIGINS.split(",") if settings.ALLOWED_ORIGINS != "*" else ["*"]
 
