@@ -27,33 +27,6 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
-from fastapi.openapi.utils import get_openapi
-
-def custom_openapi():
-    if app.openapi_schema:
-        return app.openapi_schema
-    openapi_schema = get_openapi(
-        title="My API",
-        version="1.0.0",
-        description="Custom API with default Bearer token",
-        routes=app.routes,
-    )
-    # Định nghĩa cơ chế bảo mật
-    openapi_schema["components"]["securitySchemes"] = {
-        "BearerAuth": {
-            "type": "http",
-            "scheme": "bearer",
-            "bearerFormat": "JWT",
-        }
-    }
-    # Áp dụng cho tất cả các endpoint
-    for path in openapi_schema["paths"].values():
-        for method in path.values():
-            method.setdefault("security", [{"BearerAuth": []}])
-
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
-app.openapi = custom_openapi # type: ignore[method-assign]
 # Cấu hình CORS cho iOS app
 origins = settings.ALLOWED_ORIGINS.split(",") if settings.ALLOWED_ORIGINS != "*" else ["*"]
 
@@ -66,12 +39,14 @@ app.add_middleware(
 )
 
 # Include routers (đã sửa: thêm topics, lessons, sections, progresses)
-app.include_router(auth.router, prefix=settings.API_V1_PREFIX, tags=["Authentication"])
-app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"])
-app.include_router(topics.router, prefix=settings.API_V1_PREFIX, tags=["Topics"])
-app.include_router(lessons.router, prefix=settings.API_V1_PREFIX, tags=["Lessons"])
-app.include_router(sections.router, prefix=settings.API_V1_PREFIX, tags=["Sections"])
-app.include_router(progress_router.router, prefix=settings.API_V1_PREFIX, tags=["Progress"])
+from fastapi.security import HTTPBearer
+security = HTTPBearer()
+app.include_router(auth.router, prefix=settings.API_V1_PREFIX, tags=["Authentication"], dependencies=[Depends(security)])
+app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"], dependencies=[Depends(security)])
+app.include_router(topics.router, prefix=settings.API_V1_PREFIX, tags=["Topics"], dependencies=[Depends(security)])
+app.include_router(lessons.router, prefix=settings.API_V1_PREFIX, tags=["Lessons"], dependencies=[Depends(security)])
+app.include_router(sections.router, prefix=settings.API_V1_PREFIX, tags=["Sections"], dependencies=[Depends(security)])
+app.include_router(progress_router.router, prefix=settings.API_V1_PREFIX, tags=["Progress"], dependencies=[Depends(security)])
 
 
 @app.get("/")
