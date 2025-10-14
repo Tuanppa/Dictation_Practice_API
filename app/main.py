@@ -1,20 +1,19 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer
 from app.core.config import settings
 from app.core.database import engine, Base
 
-# Import models TRƯỚC KHI tạo tables (quan trọng!)
+# Import models
 from app.models import user, topic, lesson, section, progress  # noqa: F401
 
-# Import routers (QUAN TRỌNG: import từ app.routers, không phải app.models)
+# Import routers
 from app.routers import (
     auth, 
     users, 
     topics, 
     lessons, 
     sections,
-    progress as progress_router  # ✅ Đổi tên để tránh conflict
+    progress as progress_router
 )
 
 # Tạo tables trong database
@@ -28,42 +27,11 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     swagger_ui_parameters={
-        "persistAuthorization": True,
+        "persistAuthorization": True,  # Giữ token sau khi refresh
     }
 )
 
-# Custom OpenAPI
-def custom_openapi():
-    if app.openapi_schema:
-        return app.openapi_schema
-    
-    from fastapi.openapi.utils import get_openapi
-    
-    openapi_schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
-        routes=app.routes,
-    )
-    
-    if "components" not in openapi_schema:
-        openapi_schema["components"] = {}
-    
-    openapi_schema["components"]["securitySchemes"] = {
-        "bearerAuth": {
-            "type": "http",
-            "scheme": "bearer",
-            "bearerFormat": "JWT",
-            "description": "Enter your Bearer token"
-        }
-    }
-    
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
-
-app.openapi = custom_openapi  # type: ignore
-
-# Cấu hình CORS cho iOS app
+# Cấu hình CORS
 origins = settings.ALLOWED_ORIGINS.split(",") if settings.ALLOWED_ORIGINS != "*" else ["*"]
 
 app.add_middleware(
@@ -74,21 +42,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers (đã sửa: thêm topics, lessons, sections, progresses)
-security = HTTPBearer()
+# ✅ Include routers - KHÔNG CẦN thêm dependencies ở đây
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX, tags=["Authentication"])
-app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"], dependencies=[Depends(security)])
-app.include_router(topics.router, prefix=settings.API_V1_PREFIX, tags=["Topics"], dependencies=[Depends(security)])
-app.include_router(lessons.router, prefix=settings.API_V1_PREFIX, tags=["Lessons"], dependencies=[Depends(security)])
-app.include_router(sections.router, prefix=settings.API_V1_PREFIX, tags=["Sections"], dependencies=[Depends(security)])
-app.include_router(progress_router.router, prefix=settings.API_V1_PREFIX, tags=["Progress"], dependencies=[Depends(security)])
+app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"])
+app.include_router(topics.router, prefix=settings.API_V1_PREFIX, tags=["Topics"])
+app.include_router(lessons.router, prefix=settings.API_V1_PREFIX, tags=["Lessons"])
+app.include_router(sections.router, prefix=settings.API_V1_PREFIX, tags=["Sections"])
+app.include_router(progress_router.router, prefix=settings.API_V1_PREFIX, tags=["Progress"])
 
 
 @app.get("/")
 async def root():
-    """
-    Root endpoint - Health check
-    """
+    """Root endpoint - Health check"""
     return {
         "message": "Dictation Practice API is running",
         "version": "1.0.0",
@@ -98,13 +63,12 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint
-    """
+    """Health check endpoint"""
     return {
         "status": "healthy",
         "environment": settings.ENVIRONMENT
     }
+
 
 @app.on_event("startup")
 async def create_first_admin():
@@ -115,14 +79,13 @@ async def create_first_admin():
     
     db = SessionLocal()
     try:
-        # Kiểm tra xem đã có admin chưa
         admin_exists = db.query(User).filter(User.role == RoleEnum.ADMIN).first()
         
         if not admin_exists:
-            # Tạo admin đầu tiên
             admin_user = User(
                 email="admin@example.com",
-                hashed_password=get_password_hash("admin123"),  # Đổi password này!
+                username="admin",
+                hashed_password=get_password_hash("admin123"),
                 full_name="System Admin",
                 role=RoleEnum.ADMIN,
                 is_active=True
@@ -130,8 +93,12 @@ async def create_first_admin():
             db.add(admin_user)
             db.commit()
             print("✅ First admin user created: admin@example.com / admin123")
+    except Exception as e:
+        print(f"❌ Error creating admin user: {e}")
+        db.rollback()
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     import uvicorn
@@ -141,4 +108,3 @@ if __name__ == "__main__":
         port=8000,
         reload=True
     )
-

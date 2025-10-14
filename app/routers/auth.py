@@ -12,9 +12,6 @@ from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-from fastapi.security import HTTPBearer
-
-security = HTTPBearer()
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(
@@ -118,7 +115,7 @@ async def logout(
     return {"message": "Logged out successfully"}
 
 
-@router.get("/me", response_model=UserResponse, dependencies=[Depends(security)])
+@router.get("/me", response_model=UserResponse)
 async def get_me(
     current_user: User = Depends(get_current_user)
 ):
