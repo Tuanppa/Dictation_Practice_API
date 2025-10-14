@@ -32,26 +32,27 @@ from fastapi.openapi.utils import get_openapi
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
     openapi_schema = get_openapi(
-        title=settings.PROJECT_NAME,
+        title="My API",
         version="1.0.0",
-        description="API Documentation",
+        description="Custom API with default Bearer token",
         routes=app.routes,
     )
-    
-    # Thêm security scheme
+    # Định nghĩa cơ chế bảo mật
     openapi_schema["components"]["securitySchemes"] = {
-        "bearerAuth": {
+        "BearerAuth": {
             "type": "http",
             "scheme": "bearer",
             "bearerFormat": "JWT",
         }
     }
-    
+    # Áp dụng cho tất cả các endpoint
+    for path in openapi_schema["paths"].values():
+        for method in path.values():
+            method.setdefault("security", [{"BearerAuth": []}])
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
-
 app.openapi = custom_openapi # type: ignore[method-assign]
 # Cấu hình CORS cho iOS app
 origins = settings.ALLOWED_ORIGINS.split(",") if settings.ALLOWED_ORIGINS != "*" else ["*"]
