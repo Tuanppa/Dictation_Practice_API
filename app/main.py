@@ -74,7 +74,7 @@ async def health_check():
 async def create_first_admin():
     """Tạo admin user đầu tiên nếu chưa có"""
     from app.core.database import SessionLocal
-    from app.models.user import User, RoleEnum
+    from app.models.user import User, RoleEnum, AuthProviderEnum
     from app.core.security import get_password_hash
     
     db = SessionLocal()
@@ -83,18 +83,29 @@ async def create_first_admin():
         
         if not admin_exists:
             admin_user = User(
-                email="admin@example.com",
-                username="admin",
+                email="admin@vnbrain.vn",
                 hashed_password=get_password_hash("admin123"),
                 full_name="System Admin",
                 role=RoleEnum.ADMIN,
-                is_active=True
+                auth_provider=AuthProviderEnum.EMAIL,  # ← FIX: Thêm field này
+                is_active=True,
+                is_verified=True,  # ← FIX: Thêm field này
+                score=0.0,  # ← FIX: Thêm field này
+                time=0,  # ← FIX: Thêm field này
+                achievements={}  # ← FIX: Thêm field này
             )
             db.add(admin_user)
             db.commit()
-            print("✅ First admin user created: admin@example.com / admin123")
+            print("✅ First admin user created!")
+            print("   📧 Email: admin@vnbrain.vn")
+            print("   🔑 Password: admin123")
+            print("   ⚠️  Please change password after first login!")
+        else:
+            print("✅ Admin user already exists")
     except Exception as e:
         print(f"❌ Error creating admin user: {e}")
+        import traceback
+        traceback.print_exc()
         db.rollback()
     finally:
         db.close()
