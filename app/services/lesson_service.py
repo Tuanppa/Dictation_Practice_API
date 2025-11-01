@@ -23,9 +23,10 @@ class LessonService:
         limit: int = 100,
         section_id: Optional[UUID] = None,
         level: Optional[str] = None,
-        is_premium: Optional[bool] = None
+        is_premium: Optional[bool] = None,
+        is_visible: Optional[bool] = True  # Mặc định chỉ lấy lessons visible
     ) -> List[Lesson]:
-        """Lấy danh sách lessons với filter"""
+        """Lấy danh sách lessons với filter và sắp xếp theo order_index"""
         query = db.query(Lesson)
         
         if section_id:
@@ -37,19 +38,43 @@ class LessonService:
         if is_premium is not None:
             query = query.filter(Lesson.is_premium == is_premium)
         
-        return query.offset(skip).limit(limit).all()
+        if is_visible is not None:
+            query = query.filter(Lesson.is_visible == is_visible)
+        
+        # Sắp xếp theo order_index
+        return query.order_by(Lesson.order_index.asc()).offset(skip).limit(limit).all()
     
     @staticmethod
-    def get_lessons_by_section(db: Session, section_id: UUID) -> List[Lesson]:
-        """Lấy tất cả lessons của một section"""
-        return db.query(Lesson).filter(Lesson.section_id == section_id).all()
+    def get_lessons_by_section(db: Session, section_id: UUID, is_visible: bool = True) -> List[Lesson]:
+        """Lấy tất cả lessons của một section theo thứ tự"""
+        query = db.query(Lesson).filter(Lesson.section_id == section_id)
+        
+        if is_visible is not None:
+            query = query.filter(Lesson.is_visible == is_visible)
+        
+        return query.order_by(Lesson.order_index.asc()).all()
+    
+    @staticmethod
+    def get_all_lessons_for_admin(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        section_id: Optional[UUID] = None
+    ) -> List[Lesson]:
+        """Lấy tất cả lessons (bao gồm cả hidden) - cho admin"""
+        query = db.query(Lesson)
+        
+        if section_id:
+            query = query.filter(Lesson.section_id == section_id)
+        
+        return query.order_by(Lesson.order_index.asc()).offset(skip).limit(limit).all()
     
     @staticmethod
     def get_lesson_with_progress(
         db: Session,
         lesson_id: UUID,
         user_id: int
-    ) -> Optional[LessonWithProgress]:
+    ) -> Optional[dict]:
         """Lấy lesson kèm progress của user"""
         lesson = LessonService.get_lesson_by_id(db, lesson_id)
         
@@ -62,8 +87,8 @@ class LessonService:
             Progress.user_id == user_id
         ).first()
         
-        # Convert to LessonWithProgress
-        lesson_dict = {
+        # Return as dict (Pydantic will validate in router)
+        return {
             "id": lesson.id,
             "title": lesson.title,
             "subtitle": lesson.subtitle,
@@ -73,12 +98,14 @@ class LessonService:
             "url_media": lesson.url_media,
             "url_script": lesson.url_script,
             "section_id": lesson.section_id,
+            "order_index": lesson.order_index,
+            "is_visible": lesson.is_visible,
             "completed_parts": progress.completed_parts if progress else 0,
             "star_rating": progress.star_rating if progress else 0,
-            "is_completed": (progress.completed_parts >= lesson.parts) if progress else False
+            "is_completed": (progress.completed_parts >= lesson.parts) if progress else False,
+            "score": progress.score if progress else 0.0,
+            "time": progress.time if progress else 0
         }
-        
-        return LessonWithProgress(**lesson_dict)
     
     @staticmethod
     def create_lesson(db: Session, lesson: LessonCreate) -> Lesson:
@@ -99,7 +126,9 @@ class LessonService:
             is_premium=lesson.is_premium,
             url_media=lesson.url_media,
             url_script=lesson.url_script,
-            section_id=lesson.section_id
+            section_id=lesson.section_id,
+            order_index=lesson.order_index,
+            is_visible=lesson.is_visible
         )
         
         db.add(db_lesson)
@@ -145,6 +174,37 @@ class LessonService:
         return db_lesson
     
     @staticmethod
+    def reorder_lessons(db: Session, lesson_orders: List[dict]) -> bool:
+        """
+        Sắp xếp lại thứ tự lessons
+        lesson_orders: [{"id": uuid, "order_index": int}, ...]
+        """
+        for item in lesson_orders:
+            lesson = LessonService.get_lesson_by_id(db, item["id"])
+            if lesson:
+                lesson.order_index = item["order_index"]
+        
+        db.commit()
+        return True
+    
+    @staticmethod
+    def toggle_visibility(db: Session, lesson_id: UUID) -> Lesson:
+        """Chuyển đổi trạng thái hiển thị của lesson"""
+        db_lesson = LessonService.get_lesson_by_id(db, lesson_id)
+        
+        if not db_lesson:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lesson not found"
+            )
+        
+        db_lesson.is_visible = not db_lesson.is_visible
+        db.commit()
+        db.refresh(db_lesson)
+        
+        return db_lesson
+    
+    @staticmethod
     def delete_lesson(db: Session, lesson_id: UUID) -> bool:
         """Xóa lesson"""
         db_lesson = LessonService.get_lesson_by_id(db, lesson_id)
@@ -174,12 +234,14 @@ class LessonService:
     def get_premium_lessons(db: Session, skip: int = 0, limit: int = 100) -> List[Lesson]:
         """Lấy danh sách lessons premium"""
         return db.query(Lesson).filter(
-            Lesson.is_premium == True
-        ).offset(skip).limit(limit).all()
+            Lesson.is_premium == True,
+            Lesson.is_visible == True
+        ).order_by(Lesson.order_index.asc()).offset(skip).limit(limit).all()
     
     @staticmethod
     def get_free_lessons(db: Session, skip: int = 0, limit: int = 100) -> List[Lesson]:
         """Lấy danh sách lessons miễn phí"""
         return db.query(Lesson).filter(
-            Lesson.is_premium == False
-        ).offset(skip).limit(limit).all()
+            Lesson.is_premium == False,
+            Lesson.is_visible == True
+        ).order_by(Lesson.order_index.asc()).offset(skip).limit(limit).all()

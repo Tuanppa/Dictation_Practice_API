@@ -20,20 +20,45 @@ class SectionService:
         db: Session,
         skip: int = 0,
         limit: int = 100,
-        topic_id: Optional[UUID] = None
+        topic_id: Optional[UUID] = None,
+        is_visible: Optional[bool] = True  # Mặc định chỉ lấy sections visible
     ) -> List[Section]:
-        """Lấy danh sách sections, có thể filter theo topic_id"""
+        """Lấy danh sách sections, có thể filter theo topic_id và sắp xếp theo order_index"""
         query = db.query(Section)
         
         if topic_id:
             query = query.filter(Section.topic_id == topic_id)
         
-        return query.offset(skip).limit(limit).all()
+        if is_visible is not None:
+            query = query.filter(Section.is_visible == is_visible)
+        
+        # Sắp xếp theo order_index
+        return query.order_by(Section.order_index.asc()).offset(skip).limit(limit).all()
     
     @staticmethod
-    def get_sections_by_topic(db: Session, topic_id: UUID) -> List[Section]:
-        """Lấy tất cả sections của một topic"""
-        return db.query(Section).filter(Section.topic_id == topic_id).all()
+    def get_sections_by_topic(db: Session, topic_id: UUID, is_visible: bool = True) -> List[Section]:
+        """Lấy tất cả sections của một topic theo thứ tự"""
+        query = db.query(Section).filter(Section.topic_id == topic_id)
+        
+        if is_visible is not None:
+            query = query.filter(Section.is_visible == is_visible)
+        
+        return query.order_by(Section.order_index.asc()).all()
+    
+    @staticmethod
+    def get_all_sections_for_admin(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        topic_id: Optional[UUID] = None
+    ) -> List[Section]:
+        """Lấy tất cả sections (bao gồm cả hidden) - cho admin"""
+        query = db.query(Section)
+        
+        if topic_id:
+            query = query.filter(Section.topic_id == topic_id)
+        
+        return query.order_by(Section.order_index.asc()).offset(skip).limit(limit).all()
     
     @staticmethod
     def create_section(db: Session, section: SectionCreate) -> Section:
@@ -49,7 +74,9 @@ class SectionService:
         db_section = Section(
             title=section.title,
             total_lessons=section.total_lessons,
-            topic_id=section.topic_id
+            topic_id=section.topic_id,
+            order_index=section.order_index,
+            is_visible=section.is_visible
         )
         
         db.add(db_section)
@@ -83,6 +110,37 @@ class SectionService:
         for field, value in update_data.items():
             setattr(db_section, field, value)
         
+        db.commit()
+        db.refresh(db_section)
+        
+        return db_section
+    
+    @staticmethod
+    def reorder_sections(db: Session, section_orders: List[dict]) -> bool:
+        """
+        Sắp xếp lại thứ tự sections
+        section_orders: [{"id": uuid, "order_index": int}, ...]
+        """
+        for item in section_orders:
+            section = SectionService.get_section_by_id(db, item["id"])
+            if section:
+                section.order_index = item["order_index"]
+        
+        db.commit()
+        return True
+    
+    @staticmethod
+    def toggle_visibility(db: Session, section_id: UUID) -> Section:
+        """Chuyển đổi trạng thái hiển thị của section"""
+        db_section = SectionService.get_section_by_id(db, section_id)
+        
+        if not db_section:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found"
+            )
+        
+        db_section.is_visible = not db_section.is_visible
         db.commit()
         db.refresh(db_section)
         

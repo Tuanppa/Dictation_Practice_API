@@ -1,8 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Enum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Enum, Float, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, Dict, Any
 import enum
 from app.core.database import Base
 
@@ -51,23 +51,28 @@ class User(Base):
     premium_start_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     premium_end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
+    # New Fields - Thêm các trường mới
+    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)  # Điểm số tích lũy
+    time: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # Tổng thời gian đã học (giây)
+    achievements: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)  # Các thành tích đạt được
+    
     # Account Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     
-    # Timestamps - FIX: Dùng insert_default và onupdate đúng cách
+    # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime, 
-        insert_default=func.now(),
+        default=datetime.utcnow,
         nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        insert_default=func.now(),
-        onupdate=func.now(),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
         nullable=False
     )
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     def __repr__(self):
-        return f"<User(id={self.id}, email={self.email}, role={self.role})>"
+        return f"<User(id={self.id}, email={self.email}, role={self.role}, score={self.score})>"

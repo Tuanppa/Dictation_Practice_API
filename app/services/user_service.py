@@ -1,13 +1,18 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from fastapi import HTTPException, status
 
 from app.models.user import User, AuthProviderEnum
-from app.schemas.user import UserCreate, UserUpdate, UserOAuthCreate, UserPremiumUpdate
+from app.schemas.user import (
+    UserCreate, UserUpdate, UserOAuthCreate, UserPremiumUpdate, 
+    UserAchievementsUpdate, UserStats
+)
 from app.core.security import get_password_hash, verify_password
 from app.core.redis import get_redis
+from app.models.progress import Progress
+from sqlalchemy import func
 
 
 class UserService:
@@ -62,7 +67,10 @@ class UserService:
             phone_number=user.phone_number,
             date_of_birth=user.date_of_birth,
             gender=user.gender,
-            auth_provider=AuthProviderEnum.EMAIL
+            auth_provider=AuthProviderEnum.EMAIL,
+            score=0.0,
+            time=0,
+            achievements={}
         )
         
         db.add(db_user)
@@ -94,7 +102,10 @@ class UserService:
             auth_provider=user.auth_provider,
             provider_id=user.provider_id,
             is_verified=True,  # OAuth users are auto-verified
-            last_login=datetime.utcnow()
+            last_login=datetime.utcnow(),
+            score=0.0,
+            time=0,
+            achievements={}
         )
         
         db.add(db_user)
@@ -211,6 +222,96 @@ class UserService:
         db.refresh(db_user)
         
         return db_user
+    
+    @staticmethod
+    def update_achievements(db: Session, user_id: int, achievements_update: UserAchievementsUpdate) -> User:
+        """Cập nhật achievements của user"""
+        db_user = UserService.get_user_by_id(db, user_id)
+        
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Merge achievements mới với achievements cũ
+        if db_user.achievements:
+            db_user.achievements.update(achievements_update.achievements)
+        else:
+            db_user.achievements = achievements_update.achievements
+        
+        db.commit()
+        db.refresh(db_user)
+        
+        return db_user
+    
+    @staticmethod
+    def add_achievement(db: Session, user_id: int, achievement_key: str, achievement_data: Dict[str, Any]) -> User:
+        """Thêm một achievement mới cho user"""
+        db_user = UserService.get_user_by_id(db, user_id)
+        
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        if not db_user.achievements:
+            db_user.achievements = {}
+        
+        db_user.achievements[achievement_key] = achievement_data
+        
+        db.commit()
+        db.refresh(db_user)
+        
+        return db_user
+    
+    @staticmethod
+    def get_user_stats(db: Session, user_id: int) -> UserStats:
+        """Lấy thống kê chi tiết của user"""
+        db_user = UserService.get_user_by_id(db, user_id)
+        
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Đếm số lessons completed và in progress
+        progress_records = db.query(Progress).filter(Progress.user_id == user_id).all()
+        
+        completed_count = 0
+        in_progress_count = 0
+        total_rating = 0
+        rating_count = 0
+        
+        for progress in progress_records:
+            from app.models.lesson import Lesson
+            lesson = db.query(Lesson).filter(Lesson.id == progress.lesson_id).first()
+            if lesson:
+                if progress.completed_parts >= lesson.parts:
+                    completed_count += 1
+                elif progress.completed_parts > 0:
+                    in_progress_count += 1
+                
+                if progress.star_rating > 0:
+                    total_rating += progress.star_rating
+                    rating_count += 1
+        
+        avg_rating = total_rating / rating_count if rating_count > 0 else 0.0
+        
+        achievements_count = len(db_user.achievements) if db_user.achievements else 0
+        
+        return UserStats(
+            user_id=db_user.id,
+            total_score=db_user.score,
+            total_time=db_user.time,
+            total_lessons_completed=completed_count,
+            total_lessons_in_progress=in_progress_count,
+            average_rating=round(avg_rating, 2),
+            achievements_count=achievements_count,
+            achievements=db_user.achievements
+        )
     
     @staticmethod
     def delete_user(db: Session, user_id: int) -> bool:

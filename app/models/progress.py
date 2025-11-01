@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import Integer, Float, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from datetime import datetime
@@ -15,6 +15,13 @@ class Progress(Base):
     # Fields
     completed_parts: Mapped[int] = mapped_column(Integer, default=0)  # Số parts đã hoàn thành
     star_rating: Mapped[int] = mapped_column(Integer, default=0)  # 0-5 sao
+    
+    # New Fields - Thêm các trường mới
+    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)  # Điểm số đạt được
+    time: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # Thời gian thực hành (giây)
+    skip: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # Số lần ấn skip
+    play_again: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # Số lần ấn nút nghe lại
+    check: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # Số lần ấn gợi ý
     
     # Foreign Keys
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -34,4 +41,4 @@ class Progress(Base):
     )
     
     def __repr__(self):
-        return f"<Progress(user_id={self.user_id}, lesson_id={self.lesson_id}, completed={self.completed_parts})>"
+        return f"<Progress(user_id={self.user_id}, lesson_id={self.lesson_id}, completed={self.completed_parts}, score={self.score})>"

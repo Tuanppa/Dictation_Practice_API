@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime, date
 from app.models.user import GenderEnum, RoleEnum, AuthProviderEnum
 
@@ -47,6 +47,11 @@ class UserPremiumUpdate(BaseModel):
     premium_end_date: Optional[datetime] = None
 
 
+# Schema cho việc cập nhật achievements
+class UserAchievementsUpdate(BaseModel):
+    achievements: Dict[str, Any] = Field(..., description="Các thành tích đạt được")
+
+
 # Schema trả về thông tin user (không có password)
 class UserResponse(UserBase):
     id: int
@@ -59,6 +64,9 @@ class UserResponse(UserBase):
     is_verified: bool
     created_at: datetime
     last_login: Optional[datetime] = None
+    score: float = Field(default=0.0, description="Điểm số tích lũy")
+    time: int = Field(default=0, description="Tổng thời gian đã học (giây)")
+    achievements: Optional[Dict[str, Any]] = Field(None, description="Các thành tích đạt được")
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,3 +88,15 @@ class Token(BaseModel):
 # Schema cho refresh token
 class RefreshToken(BaseModel):
     refresh_token: str
+
+
+# Schema cho user statistics (thống kê)
+class UserStats(BaseModel):
+    user_id: int
+    total_score: float
+    total_time: int
+    total_lessons_completed: int
+    total_lessons_in_progress: int
+    average_rating: float
+    achievements_count: int
+    achievements: Optional[Dict[str, Any]] = None

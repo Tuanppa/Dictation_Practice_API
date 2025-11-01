@@ -21,6 +21,10 @@ class Lesson(Base):
     url_media: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # URL đến audio/video
     url_script: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # URL đến script file
     
+    # New Fields - Thêm các trường mới
+    order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)  # Thứ tự hiển thị
+    is_visible: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)  # Cho phép hiển thị
+    
     # Foreign Key
     section_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sections.id", ondelete="CASCADE"), nullable=False)
     
@@ -29,4 +33,4 @@ class Lesson(Base):
     progress_records = relationship("Progress", back_populates="lesson", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Lesson(id={self.id}, title={self.title}, level={self.level})>"
+        return f"<Lesson(id={self.id}, title={self.title}, level={self.level}, order={self.order_index})>"

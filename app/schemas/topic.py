@@ -10,6 +10,8 @@ class TopicBase(BaseModel):
     lessons_count: int = Field(default=0, ge=0)
     image_name: Optional[str] = Field(None, max_length=255)
     has_video: bool = Field(default=False)
+    order_index: int = Field(default=0, ge=0, description="Thứ tự hiển thị")
+    is_visible: bool = Field(default=True, description="Cho phép hiển thị")
 
 
 # Schema cho việc tạo topic mới
@@ -24,6 +26,8 @@ class TopicUpdate(BaseModel):
     lessons_count: Optional[int] = Field(None, ge=0)
     image_name: Optional[str] = Field(None, max_length=255)
     has_video: Optional[bool] = None
+    order_index: Optional[int] = Field(None, ge=0)
+    is_visible: Optional[bool] = None
 
 
 # Schema trả về (response)

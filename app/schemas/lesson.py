@@ -13,6 +13,8 @@ class LessonBase(BaseModel):
     url_media: Optional[str] = Field(None, max_length=500)
     url_script: Optional[str] = Field(None, max_length=500)
     section_id: UUID
+    order_index: int = Field(default=0, ge=0, description="Thứ tự hiển thị")
+    is_visible: bool = Field(default=True, description="Cho phép hiển thị")
 
 
 # Schema cho việc tạo lesson mới
@@ -30,6 +32,8 @@ class LessonUpdate(BaseModel):
     url_media: Optional[str] = Field(None, max_length=500)
     url_script: Optional[str] = Field(None, max_length=500)
     section_id: Optional[UUID] = None
+    order_index: Optional[int] = Field(None, ge=0)
+    is_visible: Optional[bool] = None
 
 
 # Schema trả về (response)
@@ -44,3 +48,5 @@ class LessonWithProgress(LessonResponse):
     completed_parts: int = Field(default=0)
     star_rating: int = Field(default=0)
     is_completed: bool = Field(default=False)
+    score: float = Field(default=0.0)
+    time: int = Field(default=0)
