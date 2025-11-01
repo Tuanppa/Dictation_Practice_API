@@ -3,17 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base
 
-# Import models
-from app.models import user, topic, lesson, section, progress  # noqa: F401
+# Import models - ✨ ĐÃ THÊM achievement và top_performance
+from app.models import user, topic, lesson, section, progress, achievement, top_performance  # noqa: F401
 
-# Import routers
+# Import routers - ✨ ĐÃ THÊM achievements và rankings
 from app.routers import (
     auth, 
     users, 
     topics, 
     lessons, 
     sections,
-    progress as progress_router
+    progress as progress_router,
+    achievements,
+    rankings
 )
 
 # Tạo tables trong database
@@ -22,8 +24,8 @@ Base.metadata.create_all(bind=engine)
 # Khởi tạo FastAPI app
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="API for Dictation Practice App - User Management System",
-    version="1.0.0",
+    description="API for Dictation Practice App - User Management System with Achievements & Rankings",
+    version="1.1.0",  # ✨ CẬP NHẬT VERSION
     docs_url="/docs",
     redoc_url="/redoc",
     swagger_ui_parameters={
@@ -42,13 +44,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Include routers - KHÔNG CẦN thêm dependencies ở đây
+# ✅ Include routers - ✨ ĐÃ THÊM achievements và rankings
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX, tags=["Authentication"])
 app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"])
 app.include_router(topics.router, prefix=settings.API_V1_PREFIX, tags=["Topics"])
 app.include_router(lessons.router, prefix=settings.API_V1_PREFIX, tags=["Lessons"])
 app.include_router(sections.router, prefix=settings.API_V1_PREFIX, tags=["Sections"])
 app.include_router(progress_router.router, prefix=settings.API_V1_PREFIX, tags=["Progress"])
+app.include_router(achievements.router, prefix=settings.API_V1_PREFIX, tags=["Achievements"])  # ✨ MỚI
+app.include_router(rankings.router, prefix=settings.API_V1_PREFIX, tags=["Rankings & Leaderboard"])  # ✨ MỚI
 
 
 @app.get("/")
@@ -56,8 +60,14 @@ async def root():
     """Root endpoint - Health check"""
     return {
         "message": "Dictation Practice API is running",
-        "version": "1.0.0",
-        "docs": "/docs"
+        "version": "1.1.0",
+        "docs": "/docs",
+        "features": [
+            "User Authentication",
+            "Learning Progress Tracking",
+            "Achievements System",
+            "Leaderboard & Rankings"
+        ]
     }
 
 
@@ -87,12 +97,12 @@ async def create_first_admin():
                 hashed_password=get_password_hash("admin123"),
                 full_name="System Admin",
                 role=RoleEnum.ADMIN,
-                auth_provider=AuthProviderEnum.EMAIL,  # ← FIX: Thêm field này
+                auth_provider=AuthProviderEnum.EMAIL,
                 is_active=True,
-                is_verified=True,  # ← FIX: Thêm field này
-                score=0.0,  # ← FIX: Thêm field này
-                time=0,  # ← FIX: Thêm field này
-                achievements={}  # ← FIX: Thêm field này
+                is_verified=True,
+                score=0.0,
+                time=0,
+                achievements={}
             )
             db.add(admin_user)
             db.commit()
