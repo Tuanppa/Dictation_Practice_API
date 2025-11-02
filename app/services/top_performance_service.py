@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, desc
+from sqlalchemy import and_, desc, func
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, timedelta
@@ -178,12 +178,17 @@ class TopPerformanceService:
             True nếu thành công
         """
         # Xóa rankings cũ cho mode này
-        db.query(TopPerformanceOverall).filter(
-            and_(
-                TopPerformanceOverall.mode == mode,
-                TopPerformanceOverall.lesson_id == lesson_id if lesson_id else True
-            )
-        ).delete()
+        if lesson_id:
+            db.query(TopPerformanceOverall).filter(
+                and_(
+                    TopPerformanceOverall.mode == mode,
+                    TopPerformanceOverall.lesson_id == lesson_id
+                )
+            ).delete()
+        else:
+            db.query(TopPerformanceOverall).filter(
+                TopPerformanceOverall.mode == mode
+            ).delete()
         
         # Lấy danh sách users và tính điểm
         if mode == RankingModeEnum.ALL_TIME:
@@ -209,8 +214,8 @@ class TopPerformanceService:
             # Tính tổng điểm từ progress trong tháng
             user_scores = db.query(
                 Progress.user_id,
-                db.func.sum(Progress.score).label('total_score'),
-                db.func.sum(Progress.time).label('total_time')
+                func.sum(Progress.score).label('total_score'),
+                func.sum(Progress.time).label('total_time')
             ).filter(
                 Progress.updated_at >= start_of_month
             ).group_by(Progress.user_id).order_by(desc('total_score')).all()
@@ -234,8 +239,8 @@ class TopPerformanceService:
             
             user_scores = db.query(
                 Progress.user_id,
-                db.func.sum(Progress.score).label('total_score'),
-                db.func.sum(Progress.time).label('total_time')
+                func.sum(Progress.score).label('total_score'),
+                func.sum(Progress.time).label('total_time')
             ).filter(
                 Progress.updated_at >= start_of_week
             ).group_by(Progress.user_id).order_by(desc('total_score')).all()
