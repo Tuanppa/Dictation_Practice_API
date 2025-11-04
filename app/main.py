@@ -82,10 +82,6 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint with Cloudinary status"""
-    from app.utils.cloudinary_upload import CloudinaryConfig
-    
-    cloudinary_status = CloudinaryConfig.get_config_status()
-    
     return {
         "status": "healthy",
         "environment": settings.ENVIRONMENT,
