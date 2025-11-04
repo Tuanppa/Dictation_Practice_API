@@ -85,10 +85,6 @@ async def health_check():
     return {
         "status": "healthy",
         "environment": settings.ENVIRONMENT,
-        "cloudinary": cloudinary_status,
-        "features": {
-            "avatar_upload": cloudinary_status["configured"]
-        }
     }
 
 
