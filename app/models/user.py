@@ -1,3 +1,9 @@
+"""
+Updated User Model with Avatar Support
+File: app/models/user.py
+Railway + Cloudinary Ready
+"""
+
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Enum, Float, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -42,6 +48,11 @@ class User(Base):
     phone_number: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     gender: Mapped[Optional[GenderEnum]] = mapped_column(Enum(GenderEnum), nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(
+        String(500), 
+        nullable=True,
+        comment="Cloudinary avatar URL"
+    )
     
     # Role & Permissions
     role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum), default=RoleEnum.USER)
@@ -51,10 +62,10 @@ class User(Base):
     premium_start_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     premium_end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
-    # New Fields - Thêm các trường mới
-    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)  # Điểm số tích lũy
-    time: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # Tổng thời gian đã học (giây)
-    achievements: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)  # Các thành tích đạt được
+    # Learning Stats
+    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    time: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    achievements: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     
     # Account Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -75,4 +86,4 @@ class User(Base):
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     def __repr__(self):
-        return f"<User(id={self.id}, email={self.email}, role={self.role}, score={self.score})>"
+        return f"<User(id={self.id}, email={self.email}, role={self.role}, avatar={bool(self.avatar_url)})>"

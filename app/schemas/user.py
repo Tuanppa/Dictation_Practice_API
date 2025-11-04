@@ -1,3 +1,9 @@
+"""
+Updated User Schemas with Avatar Support
+File: app/schemas/user.py
+Railway + Cloudinary Ready
+"""
+
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, Dict, Any
 from datetime import datetime, date
@@ -11,6 +17,7 @@ class UserBase(BaseModel):
     phone_number: Optional[str] = None
     date_of_birth: Optional[date] = None
     gender: Optional[GenderEnum] = None
+    avatar_url: Optional[str] = Field(None, description="Cloudinary avatar URL")
 
 
 # Schema cho việc tạo user mới
@@ -24,6 +31,7 @@ class UserOAuthCreate(BaseModel):
     full_name: Optional[str] = None
     auth_provider: AuthProviderEnum
     provider_id: str
+    avatar_url: Optional[str] = Field(None, description="Avatar URL from OAuth provider")
 
 
 # Schema cho việc cập nhật user
@@ -32,6 +40,7 @@ class UserUpdate(BaseModel):
     phone_number: Optional[str] = None
     date_of_birth: Optional[date] = None
     gender: Optional[GenderEnum] = None
+    avatar_url: Optional[str] = Field(None, description="Cloudinary avatar URL")
     
 
 # Schema cho việc cập nhật password
@@ -50,6 +59,11 @@ class UserPremiumUpdate(BaseModel):
 # Schema cho việc cập nhật achievements
 class UserAchievementsUpdate(BaseModel):
     achievements: Dict[str, Any] = Field(..., description="Các thành tích đạt được")
+
+
+# Schema cho việc cập nhật avatar từ URL
+class UserAvatarUpdate(BaseModel):
+    avatar_url: str = Field(..., description="Cloudinary avatar URL")
 
 
 # Schema trả về thông tin user (không có password)
@@ -100,3 +114,4 @@ class UserStats(BaseModel):
     average_rating: float
     achievements_count: int
     achievements: Optional[Dict[str, Any]] = None
+    avatar_url: Optional[str] = Field(None, description="Cloudinary avatar URL")

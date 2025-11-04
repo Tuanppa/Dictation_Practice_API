@@ -1,18 +1,30 @@
+"""
+User Service with Avatar Support
+File: app/services/user_service.py
+Railway + Cloudinary Ready
+
+Key Changes:
+- Added avatar_url to create_user()
+- Added avatar_url to create_oauth_user()
+- Added update_avatar() method
+- Added update_avatar_from_file() method
+- Added avatar_url to get_user_stats()
+"""
+
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 
 from app.models.user import User, AuthProviderEnum
 from app.schemas.user import (
     UserCreate, UserUpdate, UserOAuthCreate, UserPremiumUpdate, 
-    UserAchievementsUpdate, UserStats
+    UserAchievementsUpdate, UserStats, UserAvatarUpdate
 )
 from app.core.security import get_password_hash, verify_password
 from app.core.redis import get_redis
 from app.models.progress import Progress
-from sqlalchemy import func
 
 
 class UserService:
@@ -50,7 +62,6 @@ class UserService:
     @staticmethod
     def create_user(db: Session, user: UserCreate) -> User:
         """Tạo user mới"""
-        # Kiểm tra email đã tồn tại
         existing_user = UserService.get_user_by_email(db, user.email)
         if existing_user:
             raise HTTPException(
@@ -58,7 +69,6 @@ class UserService:
                 detail="Email already registered"
             )
         
-        # Tạo user mới
         hashed_password = get_password_hash(user.password)
         db_user = User(
             email=user.email,
@@ -67,6 +77,7 @@ class UserService:
             phone_number=user.phone_number,
             date_of_birth=user.date_of_birth,
             gender=user.gender,
+            avatar_url=user.avatar_url,
             auth_provider=AuthProviderEnum.EMAIL,
             score=0.0,
             time=0,
@@ -82,26 +93,27 @@ class UserService:
     @staticmethod
     def create_oauth_user(db: Session, user: UserOAuthCreate) -> User:
         """Tạo hoặc lấy user từ OAuth (Google/Apple)"""
-        # Kiểm tra user đã tồn tại
         existing_user = db.query(User).filter(
             User.email == user.email,
             User.auth_provider == user.auth_provider
         ).first()
         
         if existing_user:
-            # Cập nhật last_login
             existing_user.last_login = datetime.utcnow()
+            # Update avatar if provided and user doesn't have one
+            if user.avatar_url and not existing_user.avatar_url:
+                existing_user.avatar_url = user.avatar_url
             db.commit()
             db.refresh(existing_user)
             return existing_user
         
-        # Tạo user mới
         db_user = User(
             email=user.email,
             full_name=user.full_name,
             auth_provider=user.auth_provider,
             provider_id=user.provider_id,
-            is_verified=True,  # OAuth users are auto-verified
+            avatar_url=user.avatar_url,
+            is_verified=True,
             last_login=datetime.utcnow(),
             score=0.0,
             time=0,
@@ -128,7 +140,6 @@ class UserService:
                 detail=f"Please login with {user.auth_provider.value}"
             )
         
-        # Kiểm tra hashed_password không None
         if not user.hashed_password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -138,7 +149,6 @@ class UserService:
         if not verify_password(password, user.hashed_password):
             return None
         
-        # Cập nhật last_login
         user.last_login = datetime.utcnow()
         db.commit()
         
@@ -155,7 +165,6 @@ class UserService:
                 detail="User not found"
             )
         
-        # Cập nhật các trường
         update_data = user_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_user, field, value)
@@ -182,21 +191,18 @@ class UserService:
                 detail="Cannot change password for OAuth accounts"
             )
         
-        # Kiểm tra hashed_password không None
         if not db_user.hashed_password:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User has no password set"
             )
         
-        # Xác thực password cũ
         if not verify_password(old_password, db_user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Incorrect password"
             )
         
-        # Cập nhật password mới
         db_user.hashed_password = get_password_hash(new_password)
         db.commit()
         db.refresh(db_user)
@@ -223,6 +229,91 @@ class UserService:
         
         return db_user
     
+    # ==================== AVATAR METHODS ====================
+    
+    @staticmethod
+    def update_avatar(db: Session, user_id: int, avatar_update: UserAvatarUpdate) -> User:
+        """
+        Cập nhật avatar từ URL (dùng khi có sẵn Cloudinary URL)
+        
+        Args:
+            db: Database session
+            user_id: ID của user
+            avatar_update: Cloudinary avatar URL mới
+            
+        Returns:
+            User đã được cập nhật
+        """
+        db_user = UserService.get_user_by_id(db, user_id)
+        
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        old_avatar = db_user.avatar_url
+        db_user.avatar_url = avatar_update.avatar_url
+        
+        db.commit()
+        db.refresh(db_user)
+        
+        # Optional: Delete old avatar from Cloudinary (async)
+        if old_avatar and old_avatar != avatar_update.avatar_url:
+            try:
+                from app.utils.cloudinary_upload import CloudinaryUploadService
+                import asyncio
+                asyncio.create_task(CloudinaryUploadService.delete_avatar(old_avatar))
+            except Exception as e:
+                print(f"Warning: Could not delete old avatar: {e}")
+        
+        return db_user
+    
+    @staticmethod
+    async def update_avatar_from_file(
+        db: Session, 
+        user_id: int, 
+        file: UploadFile
+    ) -> User:
+        """
+        Upload avatar file lên Cloudinary và cập nhật vào database
+        
+        Args:
+            db: Database session
+            user_id: ID của user
+            file: File avatar cần upload
+            
+        Returns:
+            User đã được cập nhật với avatar URL mới
+        """
+        from app.utils.cloudinary_upload import CloudinaryUploadService
+        
+        db_user = UserService.get_user_by_id(db, user_id)
+        
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        old_avatar = db_user.avatar_url
+        
+        # Upload to Cloudinary
+        avatar_url = await CloudinaryUploadService.upload_avatar(file, user_id)
+        
+        # Update database
+        db_user.avatar_url = avatar_url
+        db.commit()
+        db.refresh(db_user)
+        
+        # Delete old avatar (optional, để tiết kiệm storage)
+        if old_avatar and old_avatar != avatar_url:
+            await CloudinaryUploadService.delete_avatar(old_avatar)
+        
+        return db_user
+    
+    # ==================== OTHER METHODS ====================
+    
     @staticmethod
     def update_achievements(db: Session, user_id: int, achievements_update: UserAchievementsUpdate) -> User:
         """Cập nhật achievements của user"""
@@ -234,7 +325,6 @@ class UserService:
                 detail="User not found"
             )
         
-        # Merge achievements mới với achievements cũ
         if db_user.achievements:
             db_user.achievements.update(achievements_update.achievements)
         else:
@@ -277,7 +367,6 @@ class UserService:
                 detail="User not found"
             )
         
-        # Đếm số lessons completed và in progress
         progress_records = db.query(Progress).filter(Progress.user_id == user_id).all()
         
         completed_count = 0
@@ -299,7 +388,6 @@ class UserService:
                     rating_count += 1
         
         avg_rating = total_rating / rating_count if rating_count > 0 else 0.0
-        
         achievements_count = len(db_user.achievements) if db_user.achievements else 0
         
         return UserStats(
@@ -310,7 +398,8 @@ class UserService:
             total_lessons_in_progress=in_progress_count,
             average_rating=round(avg_rating, 2),
             achievements_count=achievements_count,
-            achievements=db_user.achievements
+            achievements=db_user.achievements,
+            avatar_url=db_user.avatar_url
         )
     
     @staticmethod
@@ -324,11 +413,9 @@ class UserService:
                 detail="User not found"
             )
         
-        # Soft delete: deactivate user
         db_user.is_active = False
         db.commit()
         
-        # Xóa cache nếu có
         redis = get_redis()
         redis.delete(f"user:{user_id}")
         
@@ -348,7 +435,6 @@ class UserService:
         db.delete(db_user)
         db.commit()
         
-        # Xóa cache
         redis = get_redis()
         redis.delete(f"user:{user_id}")
         

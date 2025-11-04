@@ -1,12 +1,19 @@
+"""
+FastAPI Main Application with Avatar Support
+File: app/main.py
+Railway + Cloudinary Ready
+Version: 1.2.0
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base
 
-# Import models - ✨ ĐÃ THÊM achievement và top_performance
+# Import models
 from app.models import user, topic, lesson, section, progress, achievement, top_performance  # noqa: F401
 
-# Import routers - ✨ ĐÃ THÊM achievements và rankings
+# Import routers
 from app.routers import (
     auth, 
     users, 
@@ -24,12 +31,12 @@ Base.metadata.create_all(bind=engine)
 # Khởi tạo FastAPI app
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="API for Dictation Practice App - User Management System with Achievements & Rankings",
-    version="1.1.0",  # ✨ CẬP NHẬT VERSION
+    description="API for Dictation Practice App - User Management with Avatar Support (Cloudinary)",
+    version="1.2.0",
     docs_url="/docs",
     redoc_url="/redoc",
     swagger_ui_parameters={
-        "persistAuthorization": True,  # Giữ token sau khi refresh
+        "persistAuthorization": True,
     }
 )
 
@@ -44,15 +51,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Include routers - ✨ ĐÃ THÊM achievements và rankings
+# Include routers
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX, tags=["Authentication"])
 app.include_router(users.router, prefix=settings.API_V1_PREFIX, tags=["Users"])
 app.include_router(topics.router, prefix=settings.API_V1_PREFIX, tags=["Topics"])
 app.include_router(lessons.router, prefix=settings.API_V1_PREFIX, tags=["Lessons"])
 app.include_router(sections.router, prefix=settings.API_V1_PREFIX, tags=["Sections"])
 app.include_router(progress_router.router, prefix=settings.API_V1_PREFIX, tags=["Progress"])
-app.include_router(achievements.router, prefix=settings.API_V1_PREFIX, tags=["Achievements"])  # ✨ MỚI
-app.include_router(rankings.router, prefix=settings.API_V1_PREFIX, tags=["Rankings & Leaderboard"])  # ✨ MỚI
+app.include_router(achievements.router, prefix=settings.API_V1_PREFIX, tags=["Achievements"])
+app.include_router(rankings.router, prefix=settings.API_V1_PREFIX, tags=["Rankings & Leaderboard"])
 
 
 @app.get("/")
@@ -60,27 +67,73 @@ async def root():
     """Root endpoint - Health check"""
     return {
         "message": "Dictation Practice API is running",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "docs": "/docs",
         "features": [
             "User Authentication",
             "Learning Progress Tracking",
             "Achievements System",
-            "Leaderboard & Rankings"
+            "Leaderboard & Rankings",
+            "Avatar Upload (Cloudinary)"
         ]
     }
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with Cloudinary status"""
+    from app.utils.cloudinary_upload import CloudinaryConfig
+    
+    cloudinary_status = CloudinaryConfig.get_config_status()
+    
     return {
         "status": "healthy",
-        "environment": settings.ENVIRONMENT
+        "environment": settings.ENVIRONMENT,
+        "cloudinary": cloudinary_status,
+        "features": {
+            "avatar_upload": cloudinary_status["configured"]
+        }
     }
 
 
 @app.on_event("startup")
+async def startup_event():
+    """Startup events - Create admin & check Cloudinary"""
+    
+    # 1. Create first admin user
+    await create_first_admin()
+    
+    # 2. Check Cloudinary configuration
+    from app.utils.cloudinary_upload import CloudinaryConfig
+    
+    print("\n" + "="*70)
+    print("🖼️  CLOUDINARY CONFIGURATION CHECK")
+    print("="*70)
+    
+    if CloudinaryConfig.is_configured():
+        print("✅ Cloudinary: CONFIGURED")
+        print(f"   📦 Cloud Name: {CloudinaryConfig.CLOUD_NAME}")
+        print(f"   🔑 API Key: {CloudinaryConfig.API_KEY[:8]}..." if CloudinaryConfig.API_KEY else "")
+        print("   ✨ Avatar upload: ENABLED")
+        print("   📤 Max file size: 5MB")
+        print("   🎨 Auto resize: 400x400px")
+        print("   ⚡ Auto optimize: Quality & format")
+    else:
+        print("❌ Cloudinary: NOT CONFIGURED")
+        print("\n   ⚠️  Avatar upload will NOT work!")
+        print("\n   📋 Setup Instructions:")
+        print("   1. Sign up at: https://cloudinary.com/users/register/free")
+        print("   2. Get credentials from Dashboard")
+        print("   3. Add to Railway Environment Variables:")
+        print("      - CLOUDINARY_CLOUD_NAME")
+        print("      - CLOUDINARY_API_KEY")
+        print("      - CLOUDINARY_API_SECRET")
+        print("   4. Redeploy the app")
+        print("\n   💰 Free tier: 25GB storage + 25GB bandwidth/month")
+    
+    print("="*70 + "\n")
+
+
 async def create_first_admin():
     """Tạo admin user đầu tiên nếu chưa có"""
     from app.core.database import SessionLocal
@@ -102,7 +155,8 @@ async def create_first_admin():
                 is_verified=True,
                 score=0.0,
                 time=0,
-                achievements={}
+                achievements={},
+                avatar_url=None
             )
             db.add(admin_user)
             db.commit()
