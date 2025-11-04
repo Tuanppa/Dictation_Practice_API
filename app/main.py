@@ -102,36 +102,6 @@ async def startup_event():
     
     # 1. Create first admin user
     await create_first_admin()
-    
-    # 2. Check Cloudinary configuration
-    from app.utils.cloudinary_upload import CloudinaryConfig
-    
-    print("\n" + "="*70)
-    print("🖼️  CLOUDINARY CONFIGURATION CHECK")
-    print("="*70)
-    
-    if CloudinaryConfig.is_configured():
-        print("✅ Cloudinary: CONFIGURED")
-        print(f"   📦 Cloud Name: {CloudinaryConfig.CLOUD_NAME}")
-        print(f"   🔑 API Key: {CloudinaryConfig.API_KEY[:8]}..." if CloudinaryConfig.API_KEY else "")
-        print("   ✨ Avatar upload: ENABLED")
-        print("   📤 Max file size: 5MB")
-        print("   🎨 Auto resize: 400x400px")
-        print("   ⚡ Auto optimize: Quality & format")
-    else:
-        print("❌ Cloudinary: NOT CONFIGURED")
-        print("\n   ⚠️  Avatar upload will NOT work!")
-        print("\n   📋 Setup Instructions:")
-        print("   1. Sign up at: https://cloudinary.com/users/register/free")
-        print("   2. Get credentials from Dashboard")
-        print("   3. Add to Railway Environment Variables:")
-        print("      - CLOUDINARY_CLOUD_NAME")
-        print("      - CLOUDINARY_API_KEY")
-        print("      - CLOUDINARY_API_SECRET")
-        print("   4. Redeploy the app")
-        print("\n   💰 Free tier: 25GB storage + 25GB bandwidth/month")
-    
-    print("="*70 + "\n")
 
 
 async def create_first_admin():
