@@ -149,13 +149,13 @@ class ProgressService:
         existing_progress = ProgressService.get_progress_by_user_and_lesson(
             db, user_id, progress_data.lesson_id
         )
-        
+        was_completed = False
         if existing_progress:
             # Kiểm tra xem user có VỪA MỚI hoàn thành bài không
             # (chuyển từ chưa hoàn thành -> hoàn thành)
             was_completed = existing_progress.completed_parts >= lesson.parts
             is_completing_now = progress_data.completed_parts >= lesson.parts
-            
+                  
             if is_completing_now and not was_completed:
                 # User VỪA MỚI hoàn thành bài -> Cộng điểm NGAY
                 user = db.query(User).filter(User.id == user_id).first()
@@ -163,19 +163,7 @@ class ProgressService:
                     user.score += progress_data.score
                     user.time += progress_data.time
             
-            # Update progress (cả trường hợp đang làm và làm lại)
-            existing_progress.completed_parts = progress_data.completed_parts
-            existing_progress.star_rating = progress_data.star_rating
-            existing_progress.score = progress_data.score
-            existing_progress.time = progress_data.time
-            existing_progress.skip = progress_data.skip
-            existing_progress.play_again = progress_data.play_again
-            existing_progress.check = progress_data.check
-            
-            db.commit()
-            db.refresh(existing_progress)
-            return existing_progress
-        else:
+        if not existing_progress or was_completed:
             # Tạo progress mới (lần đầu tiên làm bài)
             db_progress = Progress(
                 user_id=user_id,
@@ -202,6 +190,20 @@ class ProgressService:
             db.refresh(db_progress)
             
             return db_progress
+        
+        # Update progress (cả trường hợp đang làm và làm lại)
+        existing_progress.completed_parts = progress_data.completed_parts
+        existing_progress.star_rating = progress_data.star_rating
+        existing_progress.score = progress_data.score
+        existing_progress.time = progress_data.time
+        existing_progress.skip = progress_data.skip
+        existing_progress.play_again = progress_data.play_again
+        existing_progress.check = progress_data.check
+            
+        db.commit()
+        db.refresh(existing_progress)
+        return existing_progress
+        
     
     @staticmethod
     def update_progress(
