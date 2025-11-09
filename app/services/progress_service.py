@@ -41,13 +41,102 @@ class ProgressService:
             Progress.lesson_id == lesson_id
         ).first()
     
+    # ==================== PHƯƠNG THỨC ADMIN MỚI ====================
+    
+    @staticmethod
+    def get_progress_by_lesson_admin(
+        db: Session,
+        lesson_id: UUID,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[Progress]:
+        """
+        Lấy tất cả progress của một lesson (ADMIN ONLY)
+        
+        Args:
+            db: Database session
+            lesson_id: ID của lesson
+            skip: Pagination offset
+            limit: Pagination limit
+            
+        Returns:
+            List[Progress]: Danh sách progress của lesson
+        """
+        return db.query(Progress).filter(
+            Progress.lesson_id == lesson_id
+        ).offset(skip).limit(limit).all()
+    
+    @staticmethod
+    def get_all_progress_admin(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[Progress]:
+        """
+        Lấy tất cả progress trong hệ thống (ADMIN ONLY)
+        
+        Args:
+            db: Database session
+            skip: Pagination offset
+            limit: Pagination limit
+            
+        Returns:
+            List[Progress]: Danh sách tất cả progress
+        """
+        return db.query(Progress).offset(skip).limit(limit).all()
+    
+    @staticmethod
+    def admin_update_progress(
+        db: Session,
+        progress_id: UUID,
+        progress_update: ProgressUpdate
+    ) -> Progress:
+        """
+        Admin update toàn bộ thông tin progress (ADMIN ONLY)
+        
+        Args:
+            db: Database session
+            progress_id: ID của progress cần update
+            progress_update: Data cần update
+            
+        Returns:
+            Progress: Progress đã được update
+        """
+        db_progress = ProgressService.get_progress_by_id(db, progress_id)
+        
+        if not db_progress:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Progress not found"
+            )
+        
+        # Admin có thể update tất cả các trường
+        update_data = progress_update.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_progress, field, value)
+        
+        db.commit()
+        db.refresh(db_progress)
+        
+        return db_progress
+    
+    # ==================== PHƯƠNG THỨC CREATE/UPDATE ====================
+    
     @staticmethod
     def create_or_update_progress(
         db: Session,
         user_id: int,
         progress_data: ProgressCreate
     ) -> Progress:
-        """Tạo mới hoặc cập nhật progress"""
+        """
+        Tạo mới hoặc cập nhật progress
+        
+        Logic:
+        - CHỈ cộng score và time vào user KHI HOÀN THÀNH BÀI (completed_parts >= lesson.parts)
+        - Cộng NGAY KHI hoàn thành, không đợi đến lúc làm lại
+        - Trong quá trình làm bài: CHỈ update progress, KHÔNG cộng vào user
+        - Khi làm lại bài (reset từ hoàn thành về 0): CHỈ reset progress, KHÔNG cộng lại điểm
+        """
         # Verify lesson exists
         lesson = db.query(Lesson).filter(Lesson.id == progress_data.lesson_id).first()
         if not lesson:
@@ -62,11 +151,19 @@ class ProgressService:
         )
         
         if existing_progress:
-            # Lưu giá trị cũ TRƯỚC KHI update
-            old_score = existing_progress.score
-            old_time = existing_progress.time
+            # Kiểm tra xem user có VỪA MỚI hoàn thành bài không
+            # (chuyển từ chưa hoàn thành -> hoàn thành)
+            was_completed = existing_progress.completed_parts >= lesson.parts
+            is_completing_now = progress_data.completed_parts >= lesson.parts
             
-            # Update existing progress
+            if is_completing_now and not was_completed:
+                # User VỪA MỚI hoàn thành bài -> Cộng điểm NGAY
+                user = db.query(User).filter(User.id == user_id).first()
+                if user:
+                    user.score += progress_data.score
+                    user.time += progress_data.time
+            
+            # Update progress (cả trường hợp đang làm và làm lại)
             existing_progress.completed_parts = progress_data.completed_parts
             existing_progress.star_rating = progress_data.star_rating
             existing_progress.score = progress_data.score
@@ -75,21 +172,11 @@ class ProgressService:
             existing_progress.play_again = progress_data.play_again
             existing_progress.check = progress_data.check
             
-            # Update user's total score and time
-            user = db.query(User).filter(User.id == user_id).first()
-            if user:
-                # Tính chênh lệch score và time
-                score_diff = progress_data.score - old_score
-                time_diff = progress_data.time - old_time
-                
-                user.score += score_diff
-                user.time += time_diff
-            
             db.commit()
             db.refresh(existing_progress)
             return existing_progress
         else:
-            # Create new progress
+            # Tạo progress mới (lần đầu tiên làm bài)
             db_progress = Progress(
                 user_id=user_id,
                 lesson_id=progress_data.lesson_id,
@@ -104,11 +191,12 @@ class ProgressService:
             
             db.add(db_progress)
             
-            # Update user's total score and time
-            user = db.query(User).filter(User.id == user_id).first()
-            if user:
-                user.score += progress_data.score
-                user.time += progress_data.time
+            # Nếu user hoàn thành bài ngay lần đầu -> Cộng điểm
+            if progress_data.completed_parts >= lesson.parts:
+                user = db.query(User).filter(User.id == user_id).first()
+                if user:
+                    user.score += progress_data.score
+                    user.time += progress_data.time
             
             db.commit()
             db.refresh(db_progress)
@@ -138,24 +226,10 @@ class ProgressService:
                 detail="Not authorized to update this progress"
             )
         
-        # Lưu giá trị cũ để tính chênh lệch
-        old_score = db_progress.score
-        old_time = db_progress.time
-        
         # Cập nhật các trường
         update_data = progress_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_progress, field, value)
-        
-        # Update user's total score and time nếu có thay đổi
-        if 'score' in update_data or 'time' in update_data:
-            user = db.query(User).filter(User.id == user_id).first()
-            if user:
-                score_diff = db_progress.score - old_score
-                time_diff = db_progress.time - old_time
-                
-                user.score += score_diff
-                user.time += time_diff
         
         db.commit()
         db.refresh(db_progress)
@@ -180,11 +254,8 @@ class ProgressService:
                 detail="Not authorized to delete this progress"
             )
         
-        # Update user's total score and time trước khi xóa
-        user = db.query(User).filter(User.id == user_id).first()
-        if user:
-            user.score -= db_progress.score
-            user.time -= db_progress.time
+        # KHÔNG trừ điểm khỏi user khi xóa
+        # Vì điểm đã được cộng khi hoàn thành bài
         
         db.delete(db_progress)
         db.commit()
