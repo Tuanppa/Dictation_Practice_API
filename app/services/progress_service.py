@@ -263,8 +263,8 @@ class ProgressService:
         return db_progress
     
     @staticmethod
-    def delete_progress(db: Session, progress_id: UUID, user_id: int) -> bool:
-        """Xóa progress (verify user ownership)"""
+    def delete_progress(db: Session, progress_id: UUID) -> bool:
+        """Xóa progress (verify admin)"""
         db_progress = ProgressService.get_progress_by_id(db, progress_id)
         
         if not db_progress:
@@ -274,11 +274,11 @@ class ProgressService:
             )
         
         # Verify user owns this progress
-        if db_progress.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to delete this progress"
-            )
+        # if db_progress.user_id != user_id:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_403_FORBIDDEN,
+        #         detail="Not authorized to delete this progress"
+        #     )
         
         db.delete(db_progress)
         db.commit()

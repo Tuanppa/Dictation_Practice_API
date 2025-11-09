@@ -138,10 +138,10 @@ async def update_progress(
 async def delete_progress(
     progress_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
-    Xóa progress (chỉ xóa progress của chính mình)
+    Xóa progress (chỉ dành cho admin)
     """
     ProgressService.delete_progress(db, progress_id, current_user.id)
     return None
