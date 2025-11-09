@@ -143,7 +143,7 @@ async def delete_progress(
     """
     Xóa progress (chỉ dành cho admin)
     """
-    ProgressService.delete_progress(db, progress_id, current_user.id)
+    ProgressService.delete_progress(db, progress_id)
     return None
 
 
