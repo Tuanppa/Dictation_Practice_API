@@ -24,7 +24,8 @@ class LessonService:
         section_id: Optional[UUID] = None,
         level: Optional[str] = None,
         is_premium: Optional[bool] = None,
-        is_visible: Optional[bool] = True  # Mặc định chỉ lấy lessons visible
+        is_visible: Optional[bool] = True,  # Mặc định chỉ lấy lessons visible
+        lesson_title: Optional[str] = None  # Thêm parameter lesson_title
     ) -> List[Lesson]:
         """Lấy danh sách lessons với filter và sắp xếp theo order_index"""
         query = db.query(Lesson)
@@ -40,6 +41,10 @@ class LessonService:
         
         if is_visible is not None:
             query = query.filter(Lesson.is_visible == is_visible)
+        
+        # Thêm filter theo title (partial match, case-insensitive)
+        if lesson_title:
+            query = query.filter(Lesson.title.ilike(f"%{lesson_title}%"))
         
         # Sắp xếp theo order_index
         return query.order_by(Lesson.order_index.asc()).offset(skip).limit(limit).all()

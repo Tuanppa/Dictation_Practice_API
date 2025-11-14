@@ -19,6 +19,7 @@ async def get_lessons(
     section_id: Optional[UUID] = Query(None, description="Filter by section ID"),
     level: Optional[str] = Query(None, description="Filter by level"),
     is_premium: Optional[bool] = Query(None, description="Filter by premium status"),
+    lesson_title: Optional[str] = Query(None, description="Search by title"),
     db: Session = Depends(get_db)
 ):
     """
@@ -29,6 +30,7 @@ async def get_lessons(
     - **section_id**: Lọc theo section ID
     - **level**: Lọc theo level (A1, A2, B1, B2, C1, C2)
     - **is_premium**: Lọc theo premium status
+    - **lesson_title**: Tìm kiếm theo title (partial match, ví dụ: "nic" sẽ tìm thấy "a nice house")
     """
     lessons = LessonService.get_lessons(
         db, 
@@ -36,7 +38,8 @@ async def get_lessons(
         limit=limit, 
         section_id=section_id,
         level=level,
-        is_premium=is_premium
+        is_premium=is_premium,
+        lesson_title=lesson_title
     )
     return lessons
 
