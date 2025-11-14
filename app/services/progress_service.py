@@ -22,7 +22,7 @@ class ProgressService:
         db: Session,
         user_id: int,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 1000
     ) -> List[Progress]:
         """Lấy tất cả progress của một user (bao gồm nhiều lần làm cùng 1 lesson)"""
         return db.query(Progress).filter(
@@ -86,7 +86,7 @@ class ProgressService:
         db: Session,
         lesson_id: UUID,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 1000
     ) -> List[Progress]:
         """
         Lấy tất cả progress của một lesson (ADMIN ONLY)
@@ -100,7 +100,7 @@ class ProgressService:
     def get_all_progress_admin(
         db: Session,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 1000
     ) -> List[Progress]:
         """
         Lấy tất cả progress trong hệ thống (ADMIN ONLY)
@@ -179,8 +179,9 @@ class ProgressService:
             is_completing_now = progress_data.completed_parts >= lesson.parts
             
             # Update progress hiện tại
+            star = 1
             existing_progress.completed_parts = progress_data.completed_parts
-            existing_progress.star_rating = progress_data.star_rating
+            # existing_progress.star_rating = progress_data.star_rating
             existing_progress.score = progress_data.score
             existing_progress.time = progress_data.time
             existing_progress.skip = progress_data.skip
@@ -189,6 +190,12 @@ class ProgressService:
             
             # Nếu VỪA MỚI hoàn thành → Cộng điểm vào user
             if is_completing_now and not was_completed:
+                temp = progress_data.skip * 10 + progress_data.play_again + progress_data.check
+                if (temp <= progress_data.completed_parts * 2):                   
+                    star = 3
+                elif (temp <= progress_data.completed_parts * 4):
+                    star = 2
+                existing_progress.star_rating = star
                 user = db.query(User).filter(User.id == user_id).first()
                 if user:
                     user.score += progress_data.score
@@ -362,7 +369,7 @@ class ProgressService:
         return completed
     
     @staticmethod
-    def get_leaderboard(db: Session, limit: int = 100) -> List[dict]:
+    def get_leaderboard(db: Session, limit: int = 1000) -> List[dict]:
         """
         Lấy bảng xếp hạng top users theo score
         """
