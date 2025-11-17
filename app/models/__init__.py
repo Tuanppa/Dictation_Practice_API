@@ -6,7 +6,7 @@ from app.models.user import User
 from app.models.topic import Topic
 from app.models.section import Section
 from app.models.lesson import Lesson
-from app.models.progress import Progress
+from Dictation_Practice_API.app.models.progress import Progress
 
 __all__ = [
     "User",

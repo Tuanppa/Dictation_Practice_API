@@ -7,11 +7,12 @@ Version: 1.2.0
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from Dictation_Practice_API.app.models import progress
 from app.core.config import settings
 from app.core.database import engine, Base
 
 # Import models
-from app.models import user, topic, lesson, section, progress, achievement, top_performance  # noqa: F401
+from app.models import user, topic, lesson, section, achievement, top_performance  # noqa: F401
 
 # Import routers
 from app.routers import (

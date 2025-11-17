@@ -1,3 +1,12 @@
+"""
+Updated Progress Service - Với Real-time Ranking Updates
+File: app/services/progress_service.py
+
+Key Changes:
+- Khi user hoàn thành lesson → Update top_performance (current_month + current_week)
+- Gọi TopPerformanceService.update_current_rankings()
+"""
+
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import Optional, List
@@ -37,11 +46,6 @@ class ProgressService:
     ) -> Optional[Progress]:
         """
         Lấy progress CHƯA HOÀN THÀNH gần nhất của user cho một lesson
-        
-        Logic:
-        - Tìm progress gần nhất (order by created_at desc)
-        - Trả về progress đầu tiên CHƯA hoàn thành
-        - Nếu tất cả đều đã hoàn thành → trả về None (để tạo mới)
         """
         # Lấy tất cả progress của user cho lesson này, sắp xếp từ mới nhất
         all_progress = db.query(Progress).filter(
@@ -90,7 +94,6 @@ class ProgressService:
     ) -> List[Progress]:
         """
         Lấy tất cả progress của một lesson (ADMIN ONLY)
-        Bao gồm tất cả các lần làm bài của tất cả user
         """
         return db.query(Progress).filter(
             Progress.lesson_id == lesson_id
@@ -152,11 +155,11 @@ class ProgressService:
            
         2. Nếu existing_progress TỒN TẠI và CHƯA HOÀN THÀNH:
            → UPDATE progress hiện tại
-           → Nếu VỪA MỚI hoàn thành → Cộng điểm vào user
+           → Nếu VỪA MỚI hoàn thành → Cộng điểm vào user + UPDATE TOP_PERFORMANCE ⭐
            
         3. Nếu CHƯA CÓ progress:
            → TẠO MỚI progress
-           → Nếu hoàn thành ngay → Cộng điểm vào user
+           → Nếu hoàn thành ngay → Cộng điểm vào user + UPDATE TOP_PERFORMANCE ⭐
         """
         # Verify lesson exists
         lesson = db.query(Lesson).filter(Lesson.id == progress_data.lesson_id).first()
@@ -179,29 +182,34 @@ class ProgressService:
             is_completing_now = progress_data.completed_parts >= lesson.parts
             
             # Update progress hiện tại
-            star = 1
             existing_progress.completed_parts = progress_data.completed_parts
-            # existing_progress.star_rating = progress_data.star_rating
+            existing_progress.star_rating = progress_data.star_rating
             existing_progress.score = progress_data.score
             existing_progress.time = progress_data.time
             existing_progress.skip = progress_data.skip
             existing_progress.play_again = progress_data.play_again
             existing_progress.check = progress_data.check
             
-            # Nếu VỪA MỚI hoàn thành → Cộng điểm vào user
+            # Nếu VỪA MỚI hoàn thành → Cộng điểm vào user + UPDATE RANKINGS ⭐
             if is_completing_now and not was_completed:
-                temp = progress_data.skip * 10 + progress_data.play_again + progress_data.check
-                if (temp <= progress_data.completed_parts * 2):                   
-                    star = 3
-                elif (temp <= progress_data.completed_parts * 4):
-                    star = 2
-                existing_progress.star_rating = star
                 user = db.query(User).filter(User.id == user_id).first()
                 if user:
                     user.score += progress_data.score
                     user.time += progress_data.time
+                
+                db.commit()
+                
+                # ⭐ UPDATE TOP_PERFORMANCE (current_month + current_week)
+                from app.services.top_performance_service import TopPerformanceService
+                TopPerformanceService.update_current_rankings(
+                    db=db,
+                    user_id=user_id,
+                    score_to_add=progress_data.score,
+                    time_to_add=progress_data.time
+                )
+            else:
+                db.commit()
             
-            db.commit()
             db.refresh(existing_progress)
             return existing_progress
             
@@ -224,15 +232,27 @@ class ProgressService:
             
             db.add(db_progress)
             
-            # Nếu hoàn thành ngay lần đầu → Cộng điểm
+            # Nếu hoàn thành ngay lần đầu → Cộng điểm + UPDATE RANKINGS ⭐
             if progress_data.completed_parts >= lesson.parts:
                 user = db.query(User).filter(User.id == user_id).first()
                 if user:
                     user.score += progress_data.score
                     user.time += progress_data.time
-            
-            db.commit()
-            db.refresh(db_progress)
+                
+                db.commit()
+                db.refresh(db_progress)
+                
+                # ⭐ UPDATE TOP_PERFORMANCE (current_month + current_week)
+                from app.services.top_performance_service import TopPerformanceService
+                TopPerformanceService.update_current_rankings(
+                    db=db,
+                    user_id=user_id,
+                    score_to_add=progress_data.score,
+                    time_to_add=progress_data.time
+                )
+            else:
+                db.commit()
+                db.refresh(db_progress)
             
             return db_progress
     
@@ -280,13 +300,6 @@ class ProgressService:
                 detail="Progress not found"
             )
         
-        # Verify user owns this progress
-        # if db_progress.user_id != user_id:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_403_FORBIDDEN,
-        #         detail="Not authorized to delete this progress"
-        #     )
-        
         db.delete(db_progress)
         db.commit()
         
@@ -296,9 +309,6 @@ class ProgressService:
     def get_user_stats(db: Session, user_id: int) -> ProgressStats:
         """
         Lấy thống kê progress của user
-        
-        Note: Vì user có thể làm 1 lesson nhiều lần, 
-        chỉ đếm số lessons UNIQUE đã hoàn thành ít nhất 1 lần
         """
         # Get all user progress
         user_progress = db.query(Progress).filter(Progress.user_id == user_id).all()
@@ -353,8 +363,6 @@ class ProgressService:
     def get_completed_lessons(db: Session, user_id: int) -> List[Progress]:
         """
         Lấy danh sách progress đã hoàn thành của user
-        
-        Note: Bao gồm TẤT CẢ các lần hoàn thành (user có thể hoàn thành 1 lesson nhiều lần)
         """
         progress_list = db.query(Progress).filter(
             Progress.user_id == user_id

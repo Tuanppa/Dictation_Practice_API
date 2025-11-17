@@ -9,9 +9,11 @@ from app.core.database import Base
 
 class RankingModeEnum(enum.Enum):
     """Các chế độ xếp hạng"""
-    ALL_TIME = "all_time"  # Xếp hạng toàn thời gian
-    MONTHLY = "monthly"  # Xếp hạng theo tháng
-    WEEKLY = "weekly"  # Xếp hạng theo tuần
+    ALL_TIME = "all_time"  # Xếp hạng toàn thời gian (từ users.score)
+    LAST_MONTH = "last_month"  # Xếp hạng tháng trước (đã kết thúc) - để vinh danh
+    CURRENT_MONTH = "current_month"  # Xếp hạng tháng hiện tại (đang diễn ra)
+    LAST_WEEK = "last_week"  # Xếp hạng tuần trước (đã kết thúc) - để vinh danh
+    CURRENT_WEEK = "current_week"  # Xếp hạng tuần hiện tại (đang diễn ra)
     BY_LESSON = "by_lesson"  # Xếp hạng theo bài học cụ thể
 
 
@@ -34,7 +36,7 @@ class TopPerformanceOverall(Base):
         SQLEnum(RankingModeEnum),
         nullable=False,
         index=True,
-        comment="Chế độ xếp hạng: all_time, monthly, weekly, by_lesson"
+        comment="Chế độ xếp hạng: all_time, last_month, current_month, last_week, current_week, by_lesson"
     )
     
     # Foreign Key - User

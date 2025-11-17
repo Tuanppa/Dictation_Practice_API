@@ -24,7 +24,7 @@ from app.schemas.user import (
 )
 from app.core.security import get_password_hash, verify_password
 from app.core.redis import get_redis
-from app.models.progress import Progress
+from Dictation_Practice_API.app.models.progress import Progress
 
 
 class UserService:
