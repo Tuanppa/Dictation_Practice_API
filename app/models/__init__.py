@@ -17,6 +17,5 @@ __all__ = [
     "Lesson",
     "Progress",
     "Achievement",
-    "Top_performance"
-
+    "TopPerformanceOverall"
 ]
