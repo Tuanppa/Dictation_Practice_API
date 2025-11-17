@@ -7,7 +7,6 @@ Version: 1.2.0
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-# from Dictation_Practice_API.app.models import progress
 from app.core.config import settings
 from app.core.database import engine, Base
 
