@@ -6,7 +6,9 @@ from app.models.user import User
 from app.models.topic import Topic
 from app.models.section import Section
 from app.models.lesson import Lesson
-from Dictation_Practice_API.app.models.progress import Progress
+from app.models.progress import Progress
+from app.models.top_performance import TopPerformanceOverall
+from app.models.achievement import Achievement
 
 __all__ = [
     "User",
@@ -14,4 +16,7 @@ __all__ = [
     "Section",
     "Lesson",
     "Progress",
+    "Achievement",
+    "Top_performance"
+
 ]
