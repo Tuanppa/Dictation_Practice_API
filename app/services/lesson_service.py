@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 
 from app.models.lesson import Lesson
 from app.models.section import Section
-from Dictation_Practice_API.app.models.progress import Progress
+from app.models.progress import Progress
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonWithProgress
 
 
