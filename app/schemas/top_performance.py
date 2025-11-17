@@ -6,10 +6,12 @@ from enum import Enum
 
 # Enum cho ranking mode
 class RankingMode(str, Enum):
-    ALL_TIME = "all_time"
-    MONTHLY = "monthly"
-    WEEKLY = "weekly"
-    BY_LESSON = "by_lesson"
+    ALL_TIME = "all_time"  # Xếp hạng toàn thời gian (từ users.score)
+    LAST_MONTH = "last_month"  # Xếp hạng tháng trước (đã kết thúc) - để vinh danh
+    CURRENT_MONTH = "current_month"  # Xếp hạng tháng hiện tại (đang diễn ra)
+    LAST_WEEK = "last_week"  # Xếp hạng tuần trước (đã kết thúc) - để vinh danh
+    CURRENT_WEEK = "current_week"  # Xếp hạng tuần hiện tại (đang diễn ra)
+    BY_LESSON = "by_lesson" 
 
 
 # Base Schema
