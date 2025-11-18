@@ -3,8 +3,8 @@ Updated Progress Service - Với Real-time Ranking Updates
 File: app/services/progress_service.py
 
 Key Changes:
-- Khi user hoàn thành lesson → Update top_performance (current_month + current_week)
-- Gọi TopPerformanceService.update_current_rankings()
+- Khi user hoàn thành lesson → Update top_performance (current_month + current_week + by_lesson)
+- Gọi TopPerformanceService.update_current_rankings() với lesson_id
 """
 
 from sqlalchemy.orm import Session
@@ -199,13 +199,14 @@ class ProgressService:
                 
                 db.commit()
                 
-                # ⭐ UPDATE TOP_PERFORMANCE (current_month + current_week)
+                # ⭐ UPDATE TOP_PERFORMANCE (current_month + current_week + by_lesson)
                 from app.services.top_performance_service import TopPerformanceService
                 TopPerformanceService.update_current_rankings(
                     db=db,
                     user_id=user_id,
                     score_to_add=progress_data.score,
-                    time_to_add=progress_data.time
+                    time_to_add=progress_data.time,
+                    lesson_id=progress_data.lesson_id  # ← THÊM LESSON_ID
                 )
             else:
                 db.commit()
@@ -230,29 +231,9 @@ class ProgressService:
                 check=progress_data.check
             )
             
-            db.add(db_progress)
-            
-            # Nếu hoàn thành ngay lần đầu → Cộng điểm + UPDATE RANKINGS ⭐
-            if progress_data.completed_parts >= lesson.parts:
-                user = db.query(User).filter(User.id == user_id).first()
-                if user:
-                    user.score += progress_data.score
-                    user.time += progress_data.time
-                
-                db.commit()
-                db.refresh(db_progress)
-                
-                # ⭐ UPDATE TOP_PERFORMANCE (current_month + current_week)
-                from app.services.top_performance_service import TopPerformanceService
-                TopPerformanceService.update_current_rankings(
-                    db=db,
-                    user_id=user_id,
-                    score_to_add=progress_data.score,
-                    time_to_add=progress_data.time
-                )
-            else:
-                db.commit()
-                db.refresh(db_progress)
+            db.add(db_progress)      
+            db.commit()
+            db.refresh(db_progress)
             
             return db_progress
     

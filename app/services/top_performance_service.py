@@ -1,11 +1,12 @@
 """
-Updated Top Performance Service - Incremental Update Approach
+Updated Top Performance Service - Complete Implementation
 File: app/services/top_performance_service.py
 
-Key Changes:
+Key Features:
 - Real-time incremental updates when lesson completed
-- Flip modes at period end instead of recalculating
-- More efficient ranking updates
+- BY_LESSON mode: chỉ lưu thành tích cao nhất
+- Flip modes at period end (week/month)
+- Efficient ranking updates
 """
 
 from sqlalchemy.orm import Session
@@ -26,7 +27,7 @@ class TopPerformanceService:
     
     @staticmethod
     def get_ranking_by_id(db: Session, ranking_id: UUID) -> Optional[TopPerformanceOverall]:
-        """Láº¥y ranking theo ID"""
+        """Lấy ranking theo ID"""
         return db.query(TopPerformanceOverall).filter(TopPerformanceOverall.id == ranking_id).first()
     
     @staticmethod
@@ -37,7 +38,7 @@ class TopPerformanceService:
         skip: int = 0,
         limit: int = 100
     ) -> List[TopPerformanceOverall]:
-        """Láº¥y danh sÃ¡ch rankings vá»›i filter"""
+        """Lấy danh sách rankings với filter"""
         query = db.query(TopPerformanceOverall)
         
         if mode:
@@ -60,16 +61,12 @@ class TopPerformanceService:
             )
         
         # Validate lesson_id based on mode
-        from app.schemas.top_performance import RankingMode
-        
         if ranking.mode == RankingModeEnum.BY_LESSON:
-            # BY_LESSON mode: lesson_id is required
             if not ranking.lesson_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="lesson_id is required when mode is 'by_lesson'"
                 )
-            # Verify lesson exists
             lesson = db.query(Lesson).filter(Lesson.id == ranking.lesson_id).first()
             if not lesson:
                 raise HTTPException(
@@ -78,7 +75,6 @@ class TopPerformanceService:
                 )
             final_lesson_id = ranking.lesson_id
         else:
-            # Other modes: lesson_id should be None
             final_lesson_id = None
         
         db_ranking = TopPerformanceOverall(
@@ -103,7 +99,7 @@ class TopPerformanceService:
         ranking_id: UUID, 
         ranking_update: TopPerformanceUpdate
     ) -> TopPerformanceOverall:
-        """Cáº­p nháº­t ranking"""
+        """Cập nhật ranking"""
         db_ranking = TopPerformanceService.get_ranking_by_id(db, ranking_id)
         
         if not db_ranking:
@@ -112,7 +108,6 @@ class TopPerformanceService:
                 detail="Ranking not found"
             )
         
-        # Cáº­p nháº­t cÃ¡c trÆ°á»ng
         update_data = ranking_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_ranking, field, value)
@@ -124,7 +119,7 @@ class TopPerformanceService:
     
     @staticmethod
     def delete_ranking(db: Session, ranking_id: UUID) -> bool:
-        """XÃ³a ranking"""
+        """Xóa ranking"""
         db_ranking = TopPerformanceService.get_ranking_by_id(db, ranking_id)
         
         if not db_ranking:
@@ -145,9 +140,7 @@ class TopPerformanceService:
         lesson_id: Optional[UUID] = None,
         limit: int = 100
     ) -> List[LeaderboardEntry]:
-        """
-        Láº¥y báº£ng xáº¿p háº¡ng theo mode
-        """
+        """Lấy bảng xếp hạng theo mode"""
         query = db.query(
             TopPerformanceOverall,
             User.full_name,
@@ -176,30 +169,32 @@ class TopPerformanceService:
         
         return leaderboard
     
-    # ==================== INCREMENTAL UPDATE - NEW APPROACH ====================
+    # ==================== INCREMENTAL UPDATE - MAIN FUNCTION ====================
     
     @staticmethod
     def update_current_rankings(
         db: Session,
         user_id: int,
         score_to_add: float,
-        time_to_add: int
+        time_to_add: int,
+        lesson_id: Optional[UUID] = None
     ) -> None:
         """
-        Cáº­p nháº­t rankings cho current_month vÃ  current_week khi user hoÃ n thÃ nh lesson
+        Cập nhật rankings khi user hoàn thành lesson
         
-        **Real-time incremental update approach:**
-        - Khi user hoÃ n thÃ nh lesson, cá»™ng dá»“n score vÃ o current_month vÃ  current_week
-        - Náº¿u chÆ°a cÃ³ record â†’ Táº¡o má»›i vá»›i rank táº¡m thá»i
-        - Sau Ä‘Ã³ recalculate ranks Ä‘á»ƒ Ä‘áº£m báº£o thá»© tá»± Ä‘Ãºng
+        **Xử lý 3 modes:**
+        1. CURRENT_MONTH: Cộng dồn score và time
+        2. CURRENT_WEEK: Cộng dồn score và time
+        3. BY_LESSON: Chỉ lưu thành tích cao nhất (so sánh score, rồi time)
         
         Args:
             db: Database session
-            user_id: ID cá»§a user vá»«a hoÃ n thÃ nh lesson
-            score_to_add: Äiá»ƒm cáº§n cá»™ng thÃªm
-            time_to_add: Thá»i gian cáº§n cá»™ng thÃªm (giÃ¢y)
+            user_id: ID của user vừa hoàn thành lesson
+            score_to_add: Điểm đạt được trong lần hoàn thành này
+            time_to_add: Thời gian hoàn thành (giây)
+            lesson_id: ID của lesson vừa hoàn thành (bắt buộc cho BY_LESSON)
         """
-        # Update CURRENT_MONTH
+        # ========== YÊU CẦU 1: Update CURRENT_MONTH ==========
         current_month_record = db.query(TopPerformanceOverall).filter(
             and_(
                 TopPerformanceOverall.user_id == user_id,
@@ -208,7 +203,7 @@ class TopPerformanceService:
         ).first()
         
         if current_month_record:
-            # Cá»™ng dá»“n score vÃ  time
+            # Cộng dồn score và time
             current_month_record.score += score_to_add
             current_month_record.time += time_to_add
             current_month_record.performance = (
@@ -216,11 +211,11 @@ class TopPerformanceService:
                 if current_month_record.time > 0 else 0
             )
         else:
-            # Táº¡o record má»›i vá»›i rank táº¡m thá»i = 999999
+            # Tạo record mới với rank tạm thời = 999999
             new_record = TopPerformanceOverall(
                 mode=RankingModeEnum.CURRENT_MONTH,
                 user_id=user_id,
-                rank=999999,  # Táº¡m thá»i, sáº½ recalculate ngay sau
+                rank=999999,
                 score=score_to_add,
                 time=time_to_add,
                 performance=score_to_add / time_to_add if time_to_add > 0 else 0,
@@ -228,7 +223,7 @@ class TopPerformanceService:
             )
             db.add(new_record)
         
-        # Update CURRENT_WEEK
+        # ========== YÊU CẦU 1: Update CURRENT_WEEK ==========
         current_week_record = db.query(TopPerformanceOverall).filter(
             and_(
                 TopPerformanceOverall.user_id == user_id,
@@ -237,7 +232,7 @@ class TopPerformanceService:
         ).first()
         
         if current_week_record:
-            # Cá»™ng dá»“n score vÃ  time
+            # Cộng dồn score và time
             current_week_record.score += score_to_add
             current_week_record.time += time_to_add
             current_week_record.performance = (
@@ -245,11 +240,11 @@ class TopPerformanceService:
                 if current_week_record.time > 0 else 0
             )
         else:
-            # Táº¡o record má»›i vá»›i rank táº¡m thá»i = 999999
+            # Tạo record mới với rank tạm thời = 999999
             new_record = TopPerformanceOverall(
                 mode=RankingModeEnum.CURRENT_WEEK,
                 user_id=user_id,
-                rank=999999,  # Táº¡m thá»i, sáº½ recalculate ngay sau
+                rank=999999,
                 score=score_to_add,
                 time=time_to_add,
                 performance=score_to_add / time_to_add if time_to_add > 0 else 0,
@@ -257,53 +252,118 @@ class TopPerformanceService:
             )
             db.add(new_record)
         
+        # ========== YÊU CẦU 2: Update BY_LESSON ==========
+        if lesson_id:
+            # Tìm record BY_LESSON của user cho lesson này
+            by_lesson_record = db.query(TopPerformanceOverall).filter(
+                and_(
+                    TopPerformanceOverall.user_id == user_id,
+                    TopPerformanceOverall.mode == RankingModeEnum.BY_LESSON,
+                    TopPerformanceOverall.lesson_id == lesson_id
+                )
+            ).first()
+            
+            should_update = False
+            
+            if by_lesson_record:
+                # So sánh để quyết định có cập nhật không
+                # Ưu tiên 1: Score cao hơn
+                if score_to_add > by_lesson_record.score:
+                    should_update = True
+                # Ưu tiên 2: Score bằng nhưng time nhỏ hơn (nhanh hơn)
+                elif score_to_add == by_lesson_record.score and time_to_add < by_lesson_record.time:
+                    should_update = True
+                
+                if should_update:
+                    by_lesson_record.score = score_to_add
+                    by_lesson_record.time = time_to_add
+                    by_lesson_record.performance = (
+                        score_to_add / time_to_add if time_to_add > 0 else 0
+                    )
+            else:
+                # Tạo record mới với rank tạm thời
+                new_by_lesson = TopPerformanceOverall(
+                    mode=RankingModeEnum.BY_LESSON,
+                    user_id=user_id,
+                    rank=999999,
+                    score=score_to_add,
+                    time=time_to_add,
+                    performance=score_to_add / time_to_add if time_to_add > 0 else 0,
+                    lesson_id=lesson_id
+                )
+                db.add(new_by_lesson)
+                should_update = True  # Cần recalculate ranks
+        
         db.commit()
         
-        # Recalculate ranks cho current_month vÃ  current_week
+        # Recalculate ranks
         TopPerformanceService._recalculate_ranks(db, RankingModeEnum.CURRENT_MONTH)
         TopPerformanceService._recalculate_ranks(db, RankingModeEnum.CURRENT_WEEK)
+        
+        # Recalculate BY_LESSON ranks nếu có cập nhật
+        if lesson_id:
+            TopPerformanceService._recalculate_ranks_by_lesson(db, lesson_id)
     
     @staticmethod
     def _recalculate_ranks(db: Session, mode: RankingModeEnum) -> None:
         """
-        Recalculate ranks cho má»™t mode cá»¥ thá»ƒ
-        
-        Sáº¯p xáº¿p láº¡i ranks dá»±a trÃªn score (cao â†’ tháº¥p)
+        Recalculate ranks cho một mode cụ thể (không có lesson_id)
+        Sắp xếp theo score giảm dần
         """
-        # Láº¥y táº¥t cáº£ records cá»§a mode nÃ y, sáº¯p xáº¿p theo score giáº£m dáº§n
         records = db.query(TopPerformanceOverall).filter(
             TopPerformanceOverall.mode == mode
         ).order_by(desc(TopPerformanceOverall.score)).all()
         
-        # Cáº­p nháº­t rank
         for rank, record in enumerate(records, start=1):
             record.rank = rank
         
         db.commit()
     
-    # ==================== MODE FLIPPING - NEW APPROACH ====================
+    @staticmethod
+    def _recalculate_ranks_by_lesson(db: Session, lesson_id: UUID) -> None:
+        """
+        Recalculate ranks cho BY_LESSON mode của một lesson cụ thể
+        Sắp xếp theo: score giảm dần, rồi time tăng dần (nhanh hơn = tốt hơn)
+        """
+        records = db.query(TopPerformanceOverall).filter(
+            and_(
+                TopPerformanceOverall.mode == RankingModeEnum.BY_LESSON,
+                TopPerformanceOverall.lesson_id == lesson_id
+            )
+        ).order_by(
+            desc(TopPerformanceOverall.score),
+            TopPerformanceOverall.time.asc()
+        ).all()
+        
+        for rank, record in enumerate(records, start=1):
+            record.rank = rank
+        
+        db.commit()
+    
+    # ==================== MODE FLIPPING - YÊU CẦU 3 & 4 ====================
     
     @staticmethod
     def flip_week_rankings(db: Session) -> dict:
         """
-        Flip current_week â†’ last_week vÃ o Chá»§ Nháº­t 0h
+        YÊU CẦU 3: Flip current_week → last_week
+        
+        **Thời điểm chạy:** 23:59 PM Chủ Nhật (hoặc 00:00 Thứ 2)
+        **Cron Schedule:** 59 23 * * 0 (23:59 Chủ Nhật)
         
         **Process:**
-        1. XÃ³a táº¥t cáº£ last_week records cÅ©
-        2. Update táº¥t cáº£ current_week â†’ last_week
-        3. KhÃ´ng táº¡o current_week má»›i (sáº½ tá»± táº¡o khi user hoÃ n thÃ nh lesson Ä‘áº§u tiÃªn)
-        
-        **Cron Schedule:** 0 0 * * 0 (Chá»§ Nháº­t 00:00)
+        1. Xóa tất cả last_week records cũ
+        2. Đổi tất cả current_week → last_week
+        3. current_week mới sẽ tự tạo khi user hoàn thành lesson đầu tiên
         
         Returns:
-            dict vá»›i sá»‘ records Ä‘Ã£ flip
+            dict với số records đã xử lý
         """
-        # 1. XÃ³a last_week cÅ©
+        # 1. Xóa last_week cũ
         deleted_count = db.query(TopPerformanceOverall).filter(
             TopPerformanceOverall.mode == RankingModeEnum.LAST_WEEK
         ).delete()
         
-        # 2. Flip current_week â†’ last_week
+        # 2. Flip current_week → last_week
         updated_count = db.query(TopPerformanceOverall).filter(
             TopPerformanceOverall.mode == RankingModeEnum.CURRENT_WEEK
         ).update(
@@ -316,32 +376,32 @@ class TopPerformanceService:
         return {
             "deleted_last_week": deleted_count,
             "flipped_to_last_week": updated_count,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "message": "Week rankings flipped successfully"
         }
     
     @staticmethod
     def flip_month_rankings(db: Session) -> dict:
         """
-        Flip current_month â†’ last_month vÃ o cuá»‘i thÃ¡ng 0h
+        YÊU CẦU 4: Flip current_month → last_month
+        
+        **Thời điểm chạy:** 23:59 PM ngày cuối tháng
+        **Cron Schedule:** 59 23 28-31 * * (với logic kiểm tra ngày cuối tháng)
         
         **Process:**
-        1. XÃ³a táº¥t cáº£ last_month records cÅ©
-        2. Update táº¥t cáº£ current_month â†’ last_month
-        3. KhÃ´ng táº¡o current_month má»›i (sáº½ tá»± táº¡o khi user hoÃ n thÃ nh lesson Ä‘áº§u tiÃªn)
-        
-        **Cron Schedule:** 
-        - 0 0 L * * (Last day of month, 00:00)
-        - Hoáº·c: 0 0 1 * * (NgÃ y 1 hÃ ng thÃ¡ng, 00:00) - Flip thÃ¡ng trÆ°á»›c
+        1. Xóa tất cả last_month records cũ
+        2. Đổi tất cả current_month → last_month
+        3. current_month mới sẽ tự tạo khi user hoàn thành lesson đầu tiên
         
         Returns:
-            dict vá»›i sá»‘ records Ä‘Ã£ flip
+            dict với số records đã xử lý
         """
-        # 1. XÃ³a last_month cÅ©
+        # 1. Xóa last_month cũ
         deleted_count = db.query(TopPerformanceOverall).filter(
             TopPerformanceOverall.mode == RankingModeEnum.LAST_MONTH
         ).delete()
         
-        # 2. Flip current_month â†’ last_month
+        # 2. Flip current_month → last_month
         updated_count = db.query(TopPerformanceOverall).filter(
             TopPerformanceOverall.mode == RankingModeEnum.CURRENT_MONTH
         ).update(
@@ -354,10 +414,11 @@ class TopPerformanceService:
         return {
             "deleted_last_month": deleted_count,
             "flipped_to_last_month": updated_count,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "message": "Month rankings flipped successfully"
         }
     
-    # ==================== INITIAL CALCULATION (FOR MIGRATION) ====================
+    # ==================== INITIAL CALCULATION (FOR MIGRATION/SETUP) ====================
     
     @staticmethod
     def calculate_and_update_rankings(
@@ -366,18 +427,14 @@ class TopPerformanceService:
         lesson_id: Optional[UUID] = None
     ) -> bool:
         """
-        TÃ­nh toÃ¡n ban Ä‘áº§u cho rankings (dÃ¹ng khi migration hoáº·c khá»Ÿi táº¡o)
+        Tính toán ban đầu cho rankings (dùng khi migration hoặc khởi tạo)
         
-        **Chá»‰ dÃ¹ng cho:**
-        - ALL_TIME: TÃ­nh tá»« users.score
-        - BY_LESSON: TÃ­nh tá»« progress records
-        - Migration ban Ä‘áº§u Ä‘á»ƒ populate current_month/current_week
-        
-        **KhÃ´ng dÃ¹ng cho:**
-        - CURRENT_MONTH/WEEK: Sáº½ tá»± Ä‘á»™ng táº¡o khi user hoÃ n thÃ nh lesson
-        - LAST_MONTH/WEEK: ÄÆ°á»£c táº¡o báº±ng flip tá»« current
+        **Dùng cho:**
+        - ALL_TIME: Tính từ users.score
+        - BY_LESSON: Tính từ progress records
+        - Migration ban đầu để populate current_month/current_week
         """
-        # XÃ³a rankings cÅ©
+        # Xóa rankings cũ
         if lesson_id:
             db.query(TopPerformanceOverall).filter(
                 and_(
@@ -390,7 +447,7 @@ class TopPerformanceService:
                 TopPerformanceOverall.mode == mode
             ).delete()
         
-        # ALL_TIME: Tá»« users.score
+        # ALL_TIME: Từ users.score
         if mode == RankingModeEnum.ALL_TIME:
             users = db.query(User).filter(User.is_active == True).order_by(desc(User.score)).all()
             
@@ -406,13 +463,41 @@ class TopPerformanceService:
                 )
                 db.add(db_ranking)
         
-        # BY_LESSON: Tá»« progress records
+        # BY_LESSON: Từ progress records (lấy thành tích tốt nhất của mỗi user)
         elif mode == RankingModeEnum.BY_LESSON and lesson_id:
-            progresses = db.query(Progress).filter(
-                Progress.lesson_id == lesson_id
-            ).order_by(desc(Progress.score)).all()
+            # Subquery để lấy thành tích tốt nhất của mỗi user cho lesson này
+            from sqlalchemy import func
             
-            for rank, progress in enumerate(progresses, start=1):
+            # Lấy best score cho mỗi user
+            best_progress = db.query(
+                Progress.user_id,
+                func.max(Progress.score).label('best_score')
+            ).filter(
+                Progress.lesson_id == lesson_id
+            ).group_by(Progress.user_id).subquery()
+            
+            # Join để lấy record với best score (và fastest time nếu score bằng nhau)
+            progresses = db.query(Progress).join(
+                best_progress,
+                and_(
+                    Progress.user_id == best_progress.c.user_id,
+                    Progress.score == best_progress.c.best_score,
+                    Progress.lesson_id == lesson_id
+                )
+            ).order_by(
+                desc(Progress.score),
+                Progress.time.asc()
+            ).all()
+            
+            # Loại bỏ duplicates (giữ lại record với time nhỏ nhất)
+            seen_users = set()
+            unique_progresses = []
+            for progress in progresses:
+                if progress.user_id not in seen_users:
+                    seen_users.add(progress.user_id)
+                    unique_progresses.append(progress)
+            
+            for rank, progress in enumerate(unique_progresses, start=1):
                 db_ranking = TopPerformanceOverall(
                     mode=mode,
                     user_id=progress.user_id,
@@ -424,7 +509,7 @@ class TopPerformanceService:
                 )
                 db.add(db_ranking)
         
-        # CURRENT_MONTH/WEEK: Chá»‰ dÃ¹ng cho migration ban Ä‘áº§u
+        # CURRENT_MONTH/WEEK: Cho migration ban đầu
         elif mode in [RankingModeEnum.CURRENT_MONTH, RankingModeEnum.CURRENT_WEEK]:
             # Determine time range
             if mode == RankingModeEnum.CURRENT_MONTH:
@@ -434,7 +519,7 @@ class TopPerformanceService:
                 start_date = now - timedelta(days=now.weekday())
                 start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
             
-            # Aggregate tá»« progress
+            # Aggregate từ progress
             user_scores = db.query(
                 Progress.user_id,
                 func.sum(Progress.score).label('total_score'),
@@ -465,7 +550,7 @@ class TopPerformanceService:
         mode: RankingModeEnum,
         lesson_id: Optional[UUID] = None
     ) -> Optional[TopPerformanceOverall]:
-        """Láº¥y xáº¿p háº¡ng cá»§a má»™t user cá»¥ thá»ƒ"""
+        """Lấy xếp hạng của một user cụ thể"""
         query = db.query(TopPerformanceOverall).filter(
             and_(
                 TopPerformanceOverall.user_id == user_id,
