@@ -1,3 +1,10 @@
+"""
+Fixed Top Performance Model - Correct Enum Handling
+File: app/models/top_performance.py
+
+FIX: Use values_callable to send lowercase enum values to PostgreSQL
+"""
+
 from sqlalchemy import String, Integer, Float, ForeignKey, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column
@@ -9,12 +16,12 @@ from app.core.database import Base
 
 class RankingModeEnum(enum.Enum):
     """Các chế độ xếp hạng"""
-    ALL_TIME = "all_time"  # Xếp hạng toàn thời gian (từ users.score)
-    LAST_MONTH = "last_month"  # Xếp hạng tháng trước (đã kết thúc) - để vinh danh
-    CURRENT_MONTH = "current_month"  # Xếp hạng tháng hiện tại (đang diễn ra)
-    LAST_WEEK = "last_week"  # Xếp hạng tuần trước (đã kết thúc) - để vinh danh
-    CURRENT_WEEK = "current_week"  # Xếp hạng tuần hiện tại (đang diễn ra)
-    BY_LESSON = "by_lesson"  # Xếp hạng theo bài học cụ thể
+    ALL_TIME = "all_time"
+    LAST_MONTH = "last_month"
+    CURRENT_MONTH = "current_month"
+    LAST_WEEK = "last_week"
+    CURRENT_WEEK = "current_week"
+    BY_LESSON = "by_lesson"
 
 
 class TopPerformanceOverall(Base):
@@ -32,8 +39,14 @@ class TopPerformanceOverall(Base):
     )
     
     # Mode - Chế độ xếp hạng
+    # FIX: Thêm values_callable để sử dụng enum values (lowercase) thay vì names (UPPERCASE)
     mode: Mapped[RankingModeEnum] = mapped_column(
-        SQLEnum(RankingModeEnum),
+        SQLEnum(
+            RankingModeEnum,
+            values_callable=lambda x: [e.value for e in x],
+            name='rankingmodeenum',
+            create_type=False  # Không tạo type mới vì đã có từ migration
+        ),
         nullable=False,
         index=True,
         comment="Chế độ xếp hạng: all_time, last_month, current_month, last_week, current_week, by_lesson"
