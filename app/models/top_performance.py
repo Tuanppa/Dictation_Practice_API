@@ -5,8 +5,8 @@ File: app/models/top_performance.py
 FIX: Use values_callable to send lowercase enum values to PostgreSQL
 """
 
-from sqlalchemy import String, Integer, Float, ForeignKey, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import String, Integer, Float, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID, ENUM as PG_ENUM
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
 from typing import Optional
@@ -32,7 +32,7 @@ class RankingModeType(TypeDecorator):
     Giải quyết vấn đề SQLAlchemy sử dụng enum.name (UPPERCASE) thay vì enum.value (lowercase)
     khi binding parameters.
     """
-    impl = SQLEnum(
+    impl = PG_ENUM(
         'all_time', 'last_month', 'current_month', 
         'last_week', 'current_week', 'by_lesson',
         name='rankingmodeenum',
