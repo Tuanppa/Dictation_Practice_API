@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional
 from uuid import UUID
 from enum import Enum
@@ -27,7 +27,23 @@ class TopPerformanceBase(BaseModel):
 
 # Schema cho việc tạo ranking mới
 class TopPerformanceCreate(TopPerformanceBase):
-    pass
+    
+    @model_validator(mode='after')
+    def validate_lesson_id(self):
+        """
+        Validate lesson_id dựa trên mode:
+        - BY_LESSON: lesson_id bắt buộc
+        - Các mode khác: lesson_id phải là None
+        """
+        if self.mode == RankingMode.BY_LESSON:
+            if not self.lesson_id:
+                raise ValueError("lesson_id is required when mode is 'by_lesson'")
+        else:
+            # Các mode khác không cần lesson_id, set None nếu có
+            if self.lesson_id is not None:
+                self.lesson_id = None
+        
+        return self
 
 
 # Schema cho việc cập nhật ranking
