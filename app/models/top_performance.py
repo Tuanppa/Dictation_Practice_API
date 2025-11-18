@@ -8,6 +8,7 @@ FIX: Use values_callable to send lowercase enum values to PostgreSQL
 from sqlalchemy import String, Integer, Float, ForeignKey, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 from typing import Optional
 import uuid
 import enum
@@ -22,6 +23,36 @@ class RankingModeEnum(enum.Enum):
     LAST_WEEK = "last_week"
     CURRENT_WEEK = "current_week"
     BY_LESSON = "by_lesson"
+
+
+class RankingModeType(TypeDecorator):
+    """
+    Custom TypeDecorator để handle RankingModeEnum với lowercase values trong PostgreSQL.
+    
+    Giải quyết vấn đề SQLAlchemy sử dụng enum.name (UPPERCASE) thay vì enum.value (lowercase)
+    khi binding parameters.
+    """
+    impl = SQLEnum(
+        'all_time', 'last_month', 'current_month', 
+        'last_week', 'current_week', 'by_lesson',
+        name='rankingmodeenum',
+        create_type=False  # Không tạo type mới vì đã có từ migration
+    )
+    cache_ok = True
+    
+    def process_bind_param(self, value, dialect):
+        """Convert Python enum sang database value (lowercase)"""
+        if value is not None:
+            if isinstance(value, RankingModeEnum):
+                return value.value  # Trả về 'all_time' thay vì 'ALL_TIME'
+            return value
+        return value
+    
+    def process_result_value(self, value, dialect):
+        """Convert database value sang Python enum"""
+        if value is not None:
+            return RankingModeEnum(value)
+        return value
 
 
 class TopPerformanceOverall(Base):
@@ -39,14 +70,9 @@ class TopPerformanceOverall(Base):
     )
     
     # Mode - Chế độ xếp hạng
-    # FIX: Thêm values_callable để sử dụng enum values (lowercase) thay vì names (UPPERCASE)
+    # FIX: Sử dụng TypeDecorator để convert enum values đúng cách
     mode: Mapped[RankingModeEnum] = mapped_column(
-        SQLEnum(
-            RankingModeEnum,
-            values_callable=lambda x: [e.value for e in x],
-            name='rankingmodeenum',
-            create_type=False  # Không tạo type mới vì đã có từ migration
-        ),
+        RankingModeType(),
         nullable=False,
         index=True,
         comment="Chế độ xếp hạng: all_time, last_month, current_month, last_week, current_week, by_lesson"
